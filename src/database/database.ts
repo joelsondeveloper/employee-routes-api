@@ -7,7 +7,9 @@ database.exec(`
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         address TEXT NOT NULL,
-        phone TEXT NOT NULL
+        phone TEXT NOT NULL,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL
     );
 `);
 

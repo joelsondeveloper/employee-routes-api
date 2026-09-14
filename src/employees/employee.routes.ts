@@ -2,6 +2,8 @@ import { Router } from "express";
 import type { Employee } from "./employee.types.js";
 import { randomUUID } from "crypto";
 import database from "../database/database.js";
+import { geocodeAddress } from "../geocoding/geocoding.service.js";
+import { GeocodingNotFoundError, GeocodingProviderError } from "../geocoding/geocoding.errors.js";
 
 const router = Router();
 
@@ -45,9 +47,11 @@ router.put("/:id", (req, res) => {
     });
   }
 
-  database.prepare(
-    "UPDATE employees SET name = ?, address = ?, phone = ? WHERE id = ?",
-  ).run(name, address, phone, id);
+  database
+    .prepare(
+      "UPDATE employees SET name = ?, address = ?, phone = ? WHERE id = ?",
+    )
+    .run(name, address, phone, id);
 
   const updatedEmployee = database
     .prepare("SELECT * FROM employees WHERE id = ?")
@@ -69,7 +73,7 @@ router.delete("/:id", (req, res) => {
   return res.sendStatus(204).send();
 });
 
-router.post("/", (req, res) => {
+router.post("/", async (req, res) => {
   const { name, address, phone } = req.body;
 
   if (!name || !address || !phone) {
@@ -78,18 +82,49 @@ router.post("/", (req, res) => {
     });
   }
 
-  const employee: Employee = {
-    id: randomUUID(),
-    name,
-    address,
-    phone,
-  };
+  try {
+    const coordinates = await geocodeAddress(address);
 
-  const statement = database.prepare(
-    "INSERT INTO employees (id, name, address, phone) VALUES (?, ?, ?, ?)",
-  );
-  statement.run(employee.id, employee.name, employee.address, employee.phone);
-  res.status(201).json(employee);
+    const employee: Employee = {
+      id: randomUUID(),
+      name,
+      address,
+      phone,
+      latitude: coordinates.latitude,
+      longitude: coordinates.longitude,
+    };
+
+    const statement = database.prepare(
+      "INSERT INTO employees (id, name, address, phone, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?)",
+    );
+    statement.run(
+      employee.id,
+      employee.name,
+      employee.address,
+      employee.phone,
+      employee.latitude,
+      employee.longitude,
+    );
+    res.status(201).json(employee);
+  } catch (error) {
+    if (error instanceof GeocodingNotFoundError) {
+      return res.status(400).json({
+        message: "Address not found",
+      });
+    }
+
+    if (error instanceof GeocodingProviderError) {
+      console.error(error);
+      return res.status(502).json({
+        message: "Geocoding service is unavailable.",
+      });
+    }
+
+    console.error(error);
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
 });
 
 export default router;
