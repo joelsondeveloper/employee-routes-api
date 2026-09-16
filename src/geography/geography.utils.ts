@@ -33,6 +33,11 @@ export function calculateBearing(from: Coordinates, to: Coordinates): number {
     return (bearing + 360) % 360;
 }
 
+export function calculateAngularDifference( angleA: number, angleB: number ): number {
+    const difference = Math.abs(angleA - angleB);
+    return Math.min(difference, 360 - difference);
+}
+
 function toRadians(degrees: number): number {
     return degrees * (Math.PI / 180);
 }
