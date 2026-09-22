@@ -15,7 +15,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "tsx watch  --env-file=.env src/server.ts"
+    "dev": "tsx watch  --env-file=.env src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/optimization/grouping.unit.test.ts src/optimization/employee-route-optimization.unit.test.ts src/optimization/robustness.unit.test.ts src/optimization/execution-routing.unit.test.ts src/optimization/optimization.http.test.ts src/employees/employee.http.test.ts src/geocoding/geocoding.http.test.ts",
+    "test:integration": "tsx --env-file=.env src/optimization/grouping.integration.ts"
   },
   "repository": {
     "type": "git",

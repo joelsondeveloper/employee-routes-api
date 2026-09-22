@@ -7,17 +7,34 @@ import {
   GeocodingNotFoundError,
   GeocodingProviderError,
 } from "../geocoding/geocoding.errors.js";
+import {validateOptionalCoordinates} from "./employee-input.validation.js";
 
-const router = Router();
+interface EmployeeStore {
+  prepare(sql: string): {
+    all(): unknown[];
+    get(...params: unknown[]): unknown;
+    run(...params: unknown[]): {changes: number};
+  };
+}
+
+export interface EmployeeRouteDependencies {
+  employeeStore?: EmployeeStore;
+  geocode?: typeof geocodeAddress;
+}
+
+export function createEmployeeRouter(dependencies: EmployeeRouteDependencies = {}) {
+  const router = Router();
+  const employeeStore = dependencies.employeeStore ?? database;
+  const geocode = dependencies.geocode ?? geocodeAddress;
 
 router.get("/", (req, res) => {
-  const employees = database.prepare("SELECT * FROM employees").all();
+  const employees = employeeStore.prepare("SELECT * FROM employees").all();
   return res.json(employees);
 });
 
 router.get("/:id", (req, res) => {
   const { id } = req.params;
-  const employee = database
+  const employee = employeeStore
     .prepare("SELECT * FROM employees WHERE id = ?")
     .get(id) as Employee | undefined;
 
@@ -32,9 +49,9 @@ router.get("/:id", (req, res) => {
 
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
-  const { name, address, phone } = req.body;
+  const { name, address, phone, latitude: requestedLatitude, longitude: requestedLongitude } = req.body ?? {};
 
-  const employee = database
+  const employee = employeeStore
     .prepare("SELECT * FROM employees WHERE id = ?")
     .get(id) as Employee | undefined;
 
@@ -53,9 +70,15 @@ router.put("/:id", async (req, res) => {
     });
   }
 
-  if (address !== employee.address) {
+  const coordinates = validateOptionalCoordinates({latitude: requestedLatitude, longitude: requestedLongitude});
+  if (!coordinates.valid) return res.status(400).json({error: coordinates.message});
+
+  if (coordinates.provided) {
+    latitude = coordinates.latitude!;
+    longitude = coordinates.longitude!;
+  } else if (address !== employee.address) {
     try {
-      const coordinates = await geocodeAddress(address);
+      const coordinates = await geocode(address);
 
       latitude = coordinates.latitude;
       longitude = coordinates.longitude;
@@ -82,7 +105,7 @@ router.put("/:id", async (req, res) => {
     }
   }
 
-  database
+  employeeStore
     .prepare(
       `
     UPDATE employees
@@ -97,7 +120,7 @@ router.put("/:id", async (req, res) => {
     )
     .run(name, address, phone, latitude, longitude, id);
 
-  const updatedEmployee = database
+  const updatedEmployee = employeeStore
     .prepare("SELECT * FROM employees WHERE id = ?")
     .get(id) as Employee;
 
@@ -106,7 +129,7 @@ router.put("/:id", async (req, res) => {
 
 router.delete("/:id", (req, res) => {
   const { id } = req.params;
-  const result = database.prepare("DELETE FROM employees WHERE id = ?").run(id);
+  const result = employeeStore.prepare("DELETE FROM employees WHERE id = ?").run(id);
 
   if (result.changes === 0) {
     return res.status(404).json({
@@ -118,7 +141,7 @@ router.delete("/:id", (req, res) => {
 });
 
 router.post("/", async (req, res) => {
-  const { name, address, phone } = req.body;
+  const { name, address, phone, latitude: requestedLatitude, longitude: requestedLongitude } = req.body ?? {};
 
   if (!name || !address || !phone) {
     return res.status(400).json({
@@ -126,19 +149,24 @@ router.post("/", async (req, res) => {
     });
   }
 
+  const coordinates = validateOptionalCoordinates({latitude: requestedLatitude, longitude: requestedLongitude});
+  if (!coordinates.valid) return res.status(400).json({error: coordinates.message});
+
   try {
-    const coordinates = await geocodeAddress(address);
+    const resolved = coordinates.provided
+      ? {latitude: coordinates.latitude!, longitude: coordinates.longitude!}
+      : await geocode(address);
 
     const employee: Employee = {
       id: randomUUID(),
       name,
       address,
       phone,
-      latitude: coordinates.latitude,
-      longitude: coordinates.longitude,
+      latitude: resolved.latitude,
+      longitude: resolved.longitude,
     };
 
-    const statement = database.prepare(
+    const statement = employeeStore.prepare(
       "INSERT INTO employees (id, name, address, phone, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?)",
     );
     statement.run(
@@ -171,4 +199,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-export default router;
+  return router;
+}
+
+export default createEmployeeRouter();

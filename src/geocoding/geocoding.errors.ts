@@ -6,7 +6,7 @@ export class GeocodingNotFoundError extends Error {
 }
 
 export class GeocodingProviderError extends Error {
-    constructor(message = "Geocoding provider failed.") {
+    constructor(message = "Geocoding provider failed.", public readonly status?: number) {
         super(message);
         this.name = 'GeocodingProviderError';
     }

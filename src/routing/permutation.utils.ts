@@ -11,7 +11,7 @@ export function generatePermutations<T>(items: T[]): T[][] {
     }
 
     for (let i = 0; i < remainingItems.length; i++) {
-      const newPermutation = [...currentPermutation, remainingItems[i]];
+      const newPermutation = [...currentPermutation, remainingItems[i]!];
       const newRemainingItems = [
         ...remainingItems.slice(0, i),
         ...remainingItems.slice(i + 1),

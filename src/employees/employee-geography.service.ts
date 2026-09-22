@@ -15,7 +15,7 @@ export function analyzeEmployeeGeography(employee: Employee, companyCoordinates:
     };
 
     const distanceFromCompany = calculateDistance(employeeCoordinates, companyCoordinates);
-    const bearingFromCompany = calculateBearing(employeeCoordinates, companyCoordinates);
+    const bearingFromCompany = calculateBearing(companyCoordinates, employeeCoordinates);
 
     return {
         employee,

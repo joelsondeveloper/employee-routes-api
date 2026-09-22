@@ -28,9 +28,16 @@ export async function geocodeAddress(
     format: "json",
   });
 
-  const response = await fetch(
-    `https://us1.locationiq.com/v1/search.php?${params}`,
-  );
+  let response: Response;
+  try {
+    response = await fetch(
+      `https://us1.locationiq.com/v1/search.php?${params}`,
+    );
+  } catch (error) {
+    throw new GeocodingProviderError(
+      error instanceof Error ? error.message : "Geocoding request failed.",
+    );
+  }
 
   if (response.status === 404) {
     throw new GeocodingNotFoundError();
@@ -39,25 +46,35 @@ export async function geocodeAddress(
   if (!response.ok) {
     throw new GeocodingProviderError(
       `Geocoding request failed with status ${response.status}`,
+      response.status,
     );
   }
 
-  if (!response.ok) {
+  let data: unknown;
+  try {
+    data = await response.json();
+  } catch (error) {
     throw new GeocodingProviderError(
-      "Geocoding request failed with status ${response.status}",
+      error instanceof Error ? error.message : "Invalid geocoding response.",
+      response.status,
     );
   }
 
-  const data = await response.json();
-
-  if (!data.length) {
+  if (!Array.isArray(data) || !data.length) {
     throw new GeocodingNotFoundError();
   }
 
   const result = data[0];
+  const latitude = Number(result.lat);
+  const longitude = Number(result.lon);
+
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+      !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    throw new GeocodingProviderError("Geocoding provider returned invalid coordinates");
+  }
 
   return {
-    latitude: Number(result.lat),
-    longitude: Number(result.lon),
+    latitude,
+    longitude,
   };
 }

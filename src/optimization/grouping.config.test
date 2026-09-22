@@ -1,0 +1,5 @@
+export const GROUPING_CONFIG = {
+  maxGroupSize: 4,
+
+  minimumCompatibilityScore: 35,
+};

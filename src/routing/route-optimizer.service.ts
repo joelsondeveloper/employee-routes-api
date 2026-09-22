@@ -1,21 +1,22 @@
-import type { CalculatedRoute, RoutingMatrix } from "./routing.types.js";
+import type { CalculatedRoute, RoutingMatrix, RouteCandidate } from "./routing.types.js";
+
+import { evaluateRouteCandidates } from "./route-evaluator.service.js";
+export { evaluateRouteCandidates } from "./route-evaluator.service.js";
 
 import { calculateRoute } from "./route-calculator.service.js";
 import { generatePermutations } from "./permutation.utils.js";
 
-export function findFastedRoute(
+export function findFastestRoute(
   matrix: RoutingMatrix,
   originIndex: number,
   passengerIndexes: number[],
 ): CalculatedRoute {
-  const permutations = generatePermutations(passengerIndexes);
+  const candidates = evaluateRouteCandidates(matrix, originIndex, passengerIndexes);
 
   let fastestRoute: CalculatedRoute | null = null;
 
-  for (const permutation of permutations) {
-    const routeIndexes = [originIndex, ...permutation];
-
-    const route = calculateRoute(matrix, routeIndexes);
+  for (const candidate of candidates) {
+    const route = candidate.route;
 
     console.log(
       route.pointIds.join(" → "),

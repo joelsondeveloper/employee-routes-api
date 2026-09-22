@@ -11,7 +11,8 @@ export interface RouteMetrics {
 
 export interface RoutingMatrix {
     points: RoutingPoint[];
-    metrics: RouteMetrics[][];
+    /** null means confirmed absence of route; missing cells are invalid. */
+    metrics: (RouteMetrics | null)[][];
 }
 
 export interface RoutingProvider {
@@ -41,4 +42,34 @@ export interface RouteEvaluation {
 
     maxExtraDurationSeconds: number;
     averageExtraDurationSeconds: number;
+}
+
+export interface RouteCandidate {
+  route: CalculatedRoute;
+  evaluation: RouteEvaluation;
+}
+
+export interface RouteScore {
+  efficiencyScore: number;
+  averageDetourScore: number;
+  maxDetourScore: number;
+  finalScore: number;
+}
+
+export interface ScoredRouteCandidate {
+  candidate: RouteCandidate;
+  score: RouteScore;
+  validation: RouteValidation;
+}
+
+export interface RouteConstraintViolation {
+  type: "MAX_EXTRA_DURATION";
+  pointId: string;
+  actualValue: number;
+  limit: number;
+}
+
+export interface RouteValidation {
+  isAcceptable: boolean;
+  violations: RouteConstraintViolation[];
 }

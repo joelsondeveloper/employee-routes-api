@@ -1,3 +1,14 @@
+import assert from "node:assert/strict";
+import type { RoutingProvider } from "../routing/routing.types.js";
+// This legacy fixture uses synthetic coordinates; real routing is covered by A–O.
+const provider: RoutingProvider = {
+  async getMatrix(points) {
+    return { points, metrics: points.map((_, i) => points.map((_, j) => ({
+      durationSeconds: i === j ? 0 : 60,
+      distanceMeters: i === j ? 0 : 100,
+    }))) };
+  },
+};
 import { createCandidateGroups } from "./grouping.service.js";
 
 const employees = [
@@ -123,7 +134,7 @@ const employees = [
   }
 ];
 
-const groups = createCandidateGroups(employees);
+const groups = await createCandidateGroups({ id: "company", latitude: 0, longitude: 0 }, employees, provider);
 
 for (const group of groups) {
   console.log(
@@ -132,3 +143,5 @@ for (const group of groups) {
     )
   );
 }
+assert.equal(groups.flatMap(group => group.employees).length, employees.length);
+assert.ok(groups.every(group => group.employees.length <= 4));

@@ -1,23 +1,19 @@
+import { getRouteMetric, validateRoutingMatrix } from "./routing-validation.service.js";
 import type { CalculatedRoute, RoutingMatrix } from "./routing.types.js";
 
 export function calculateRoute(
   matrix: RoutingMatrix,
   pointIndexes: number[],
 ): CalculatedRoute {
+  validateRoutingMatrix(matrix);
   let totalDistanceMeters = 0;
   let totalDurationSeconds = 0;
 
   for (let i = 0; i < pointIndexes.length - 1; i++) {
-    const fromIndex = pointIndexes[i];
-    const toIndex = pointIndexes[i + 1];
+    const fromIndex = pointIndexes[i]!;
+    const toIndex = pointIndexes[i + 1]!;
 
-    const metrics = matrix.metrics[fromIndex]?.[toIndex];
-
-    if (!metrics) {
-      throw new Error(
-        `Route metric not found from ${fromIndex} to ${toIndex}.`,
-      );
-    }
+    const metrics = getRouteMetric(matrix, fromIndex, toIndex);
 
     totalDurationSeconds += metrics.durationSeconds;
     totalDistanceMeters += metrics.distanceMeters;
