@@ -29,5 +29,9 @@ export function useOptimization() {
     }
   }, []);
 
-  return {state, optimize};
+  const applyResult = useCallback((result: OptimizationResponse) => {
+    setState({status: "success", result});
+  }, []);
+
+  return {state, optimize, applyResult};
 }

@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 
-const database = new Database("database.sqlite");
+const database = new Database(process.env.DATABASE_PATH ?? "database.sqlite");
 
 database.exec(`
     CREATE TABLE IF NOT EXISTS employees (

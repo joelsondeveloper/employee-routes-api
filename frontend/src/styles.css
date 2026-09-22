@@ -236,6 +236,22 @@ button:focus-visible, a:focus-visible, summary:focus-visible, select:focus-visib
 .map-panel { scroll-margin-top: 20px; }
 .nav-close { display: none; }
 [hidden] { display: none !important; }
+.editor-panel { display: grid; gap: 18px; }
+.editor-toolbar, .editor-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.editor-actions { justify-content: flex-end; }
+.editor-panel .group-card { padding-bottom: 14px; }
+.editor-panel .route-order { padding: 8px 18px 0; }
+.editor-panel .stop-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; }
+.editor-panel .stop-row .stop-name { flex: 1; }
+.icon-button { display: inline-grid; place-items: center; border: 1px solid var(--line); border-radius: 6px; background: white; color: var(--muted); min-width: 30px; min-height: 30px; cursor: pointer; }
+.icon-button:disabled { opacity: .45; cursor: not-allowed; }
+.editor-panel select, .export-select select { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.modal-backdrop { position: fixed; inset: 0; z-index: 1000; background: rgba(14,31,49,.48); display: grid; place-items: center; padding: 18px; }
+.modal-card { width: min(720px, 100%); max-height: min(86vh, 760px); overflow: auto; background: white; border-radius: 12px; padding: 22px; box-shadow: 0 20px 50px rgba(14,31,49,.25); }
+.modal-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.modal-header h2 { margin: 0; }
+.export-preview { background: #f5f7fa; border: 1px solid var(--line); border-radius: 8px; padding: 14px; max-height: 48vh; overflow: auto; white-space: pre-wrap; font-size: 12px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
 @media (max-width: 1100px) { .map-panel { order: -1; } }
 @media (max-width: 760px) {
   .nav-close { display: flex; align-self: flex-end; margin: 12px 12px 0; color: white; }

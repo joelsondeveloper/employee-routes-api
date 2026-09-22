@@ -23,6 +23,7 @@ import type {
   RouteGroupResponse,
   RouteViolationResponse,
 } from "./optimization.http.types.js";
+import { recalculateManualGroups, type ManualRouteGroupInput } from "./manual-route.service.js";
 
 interface EmployeeStore {
   prepare(sql: string): {all(): unknown[]};
@@ -137,7 +138,7 @@ function issueResponse(issue: OptimizationIssue): OptimizationIssueResponse {
   };
 }
 
-function responseForResult(result: EmployeeRouteOptimizationResult, employees: Employee[], origin: RoutingPoint): OptimizeRoutesResponse {
+export function responseForResult(result: EmployeeRouteOptimizationResult, employees: Employee[], origin: RoutingPoint): OptimizeRoutesResponse {
   const employeeById = new Map(employees.map((employee) => [employee.id, employee]));
   const issues = result.issues.map((issue) => {
     const response = issueResponse(issue);
@@ -229,6 +230,44 @@ export function createOptimizationRouter(dependencies: OptimizationRouteDependen
       const mapped = error instanceof Error && error.message.startsWith("Unknown employee IDs:")
         ? {status: 400, body: {error: {code: "EMPLOYEE_NOT_FOUND", message: "Um ou mais funcionários selecionados não existem."}} satisfies HttpErrorResponse}
         : errorResponse(error);
+      return response.status(mapped.status).json(mapped.body);
+    }
+  });
+
+  router.post("/recalculate", async (request: Request, response: Response) => {
+    const body = request.body as {employeeIds?: unknown; groups?: unknown} | null;
+    if (!body || !Array.isArray(body.employeeIds) || !Array.isArray(body.groups) ||
+        body.employeeIds.some(id => typeof id !== "string" || !id.trim())) {
+      return response.status(400).json({error: {code: "INVALID_REQUEST", message: "Informe employeeIds e groups válidos."}} satisfies HttpErrorResponse);
+    }
+    const employeeIds = body.employeeIds as string[];
+    const allEmployees = employeeStore.prepare("SELECT id, name, address, phone, latitude, longitude FROM employees ORDER BY id").all() as Employee[];
+    const byId = new Map(allEmployees.map(employee => [employee.id, employee]));
+    if (employeeIds.some(id => !byId.has(id)) || new Set(employeeIds).size !== employeeIds.length) {
+      return response.status(400).json({error: {code: "EMPLOYEE_NOT_FOUND", message: "A seleção contém funcionários inválidos ou duplicados."}} satisfies HttpErrorResponse);
+    }
+    const inputs = body.groups as ManualRouteGroupInput[];
+    if (inputs.some(group => !group || typeof group.groupNumber !== "number" || !Array.isArray(group.employeeIds) || group.employeeIds.length > 4 || group.employeeIds.some(id => typeof id !== "string" || !employeeIds.includes(id)))) {
+      return response.status(400).json({error: {code: "INVALID_REQUEST", message: "Os grupos manuais excedem a capacidade ou contêm funcionários inválidos."}} satisfies HttpErrorResponse);
+    }
+    const used = inputs.flatMap(group => group.employeeIds);
+    if (new Set(used).size !== used.length || used.some(id => !employeeIds.includes(id))) {
+      return response.status(400).json({error: {code: "INVALID_REQUEST", message: "Cada funcionário deve aparecer no máximo uma vez nos grupos."}} satisfies HttpErrorResponse);
+    }
+    try {
+      const origin: RoutingPoint = {id: "company", ...company.coordinates};
+      const selected = employeeIds.map(id => byId.get(id)!);
+      const recalculated = await recalculateManualGroups(origin, selected, inputs, makeProvider());
+      const result: EmployeeRouteOptimizationResult = {
+        groups: recalculated.groups,
+        issues: recalculated.issues,
+        summary: {totalEmployees: selected.length, totalGroups: recalculated.groups.length, acceptableGroups: recalculated.groups.filter(group => group.acceptable).length,
+          rejectedGroups: recalculated.groups.filter(group => !group.acceptable).length, unavailableGroups: recalculated.issues.filter(issue => issue.type === "UNAVAILABLE_GROUP").length,
+          unroutableEmployees: 0, averageOccupancy: recalculated.groups.length ? selected.length / recalculated.groups.length : 0},
+      };
+      return response.json(responseForResult(result, selected, origin));
+    } catch (error) {
+      const mapped = errorResponse(error);
       return response.status(mapped.status).json(mapped.body);
     }
   });

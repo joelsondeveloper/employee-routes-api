@@ -118,3 +118,27 @@ Current mappings:
 1. Start the server with the configured `.env` file.
 2. Send `GET http://localhost:3000/health`; expect `200` and `{"status":"ok"}`.
 3. Send `POST http://localhost:3000/api/routes/optimize` with `Content-Type: application/json` and a body such as `{"employeeIds":["employee-1"]}`; expect `200` and the groups/issues/summary response. A populated database may take more than a minute because the request performs the complete optimization.
+
+## Recalculate manually reviewed groups
+
+`POST /api/routes/recalculate`
+
+This endpoint recalculates only the groups supplied by the operator. It does not run the initial grouping policy again.
+
+```json
+{
+  "employeeIds": ["employee-1", "employee-2", "employee-3"],
+  "groups": [
+    {
+      "groupNumber": 1,
+      "employeeIds": ["employee-1", "employee-3"],
+      "stopOrder": ["company", "employee-3", "employee-1"]
+    },
+    {"groupNumber": 2, "employeeIds": ["employee-2"]}
+  ]
+}
+```
+
+`stopOrder` is optional. When supplied, that order is calculated exactly as requested; when omitted, the existing route scoring policy chooses the best order for that group. Groups cannot contain more than four passengers. This endpoint returns the same group/issue/summary DTO as optimization and never requests a real Uber trip.
+
+The frontend export menu produces internal JSON, operational CSV, plain text, and a preview-only Uber Guest Rides payload. The Uber preview is not sent to Uber and requires valid coordinates and Brazilian phone numbers convertible to E.164 (`+55...`).

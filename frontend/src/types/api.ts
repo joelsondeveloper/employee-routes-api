@@ -94,6 +94,12 @@ export interface OptimizationResponse {
   summary: OptimizationSummary;
 }
 
+export interface ManualRouteInput {
+  groupNumber: number;
+  employeeIds: string[];
+  stopOrder?: string[];
+}
+
 export interface ApiErrorBody {
   error?: string | {
     code?: string;

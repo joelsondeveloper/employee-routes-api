@@ -1,4 +1,4 @@
-import {AlertCircle, MapPinned, RefreshCw, Route as RouteIcon} from "lucide-react";
+import {AlertCircle, Download, Edit3, MapPinned, RefreshCw, Route as RouteIcon} from "lucide-react";
 import {useEffect, useRef, useState} from "react";
 import {useOptimization} from "../hooks/useOptimization";
 import {api, ApiError} from "../services/api";
@@ -10,6 +10,8 @@ import {RouteMap} from "../components/RouteMap";
 import {SummaryCards} from "../components/SummaryCards";
 import {EmployeeSelectionModal} from "../components/EmployeeSelectionModal";
 import type {Employee} from "../types/api";
+import {ManualRouteEditor} from "../components/ManualRouteEditor";
+import {buildUberPreview, internalJson, operationalCsv, routeText} from "../lib/route-export";
 
 function EmptyRoutes({onOptimize, employeeCount}: {onOptimize: () => void; employeeCount?: number}) {
   return <div className="empty-state"><div className="empty-inner">
@@ -52,19 +54,21 @@ function IssuesPanel({result}: {result: OptimizationResponse}) {
   </section>;
 }
 
-function Results({result}: {result: OptimizationResponse}) {
+function Results({result, manuallyModified, onEdit, onExport}: {result: OptimizationResponse; manuallyModified: boolean; onEdit: () => void; onExport: (kind: "uber" | "json" | "csv" | "text") => void}) {
   const [selectedNumber, setSelectedNumber] = useState<number | undefined>(result.groups[0]?.groupNumber);
   const selectedGroup = result.groups.find((group) => group.groupNumber === selectedNumber);
   const routedCount = result.groups.reduce((total, group) => total + group.employees.length, 0);
   const issueEmployees = result.summary.totalEmployees - routedCount;
   const anomalous = result.groups.filter(isAnomalousGroup);
   return <>
+    {manuallyModified && <p className="section-note result-context">Modificada manualmente · métricas recalculadas</p>}
     <SummaryCards summary={result.summary} issueCount={result.issues.length} />
     <p className="section-note result-context">Resultado desta sessão. Os dados podem ser revistos em Funcionários; gere novamente após alterações.</p>
     <div className="results-layout">
       <section className="groups-column" aria-labelledby="groups-title">
         <div className="section-heading"><div><h2 className="section-title" id="groups-title">Grupos de transporte</h2>
           <div className="section-note">Selecione um carro para destacar sua sequência no mapa.</div></div>
+          <div className="editor-actions"><button className="button button-secondary" onClick={onEdit}><Edit3 size={15}/>Editar rotas</button><label className="button button-quiet export-select"><Download size={15}/>Exportar<select aria-label="Exportar rotas" defaultValue="" onChange={event => {if (event.target.value) onExport(event.target.value as "uber" | "json" | "csv" | "text"); event.currentTarget.value = "";}}><option value="">Escolher</option><option value="uber">Uber</option><option value="json">JSON</option><option value="csv">CSV</option><option value="text">Texto</option></select></label></div>
         </div>
         {result.groups.length === 0 && <p className="empty-table">Nenhum grupo calculável neste resultado.</p>}
         {result.groups.map((group) => <RouteCard key={group.groupNumber} group={group}
@@ -95,17 +99,24 @@ function Results({result}: {result: OptimizationResponse}) {
 }
 
 export function RoutesPage({employeeCount}: {employeeCount?: number}) {
-  const {state, optimize} = useOptimization();
+  const {state, optimize, applyResult} = useOptimization();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectionOpen, setSelectionOpen] = useState(false);
   const [employeeLoadError, setEmployeeLoadError] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+  const [originalResult, setOriginalResult] = useState<OptimizationResponse>();
+  const [exportPreview, setExportPreview] = useState<string>();
+  const [manuallyModified, setManuallyModified] = useState(false);
   const lastSelection = useRef<string[]>([]);
   const loading = state.status === "loading";
   useEffect(() => {
     void api.listEmployees().then(setEmployees).catch(() => setEmployeeLoadError("Não foi possível carregar os funcionários para a seleção."));
   }, []);
   const openSelection = () => { if (!loading) setSelectionOpen(true); };
-  const confirmSelection = (ids: string[]) => { lastSelection.current = ids; setSelectionOpen(false); void optimize(ids); };
+  const confirmSelection = (ids: string[]) => { lastSelection.current = ids; setManuallyModified(false); setSelectionOpen(false); void optimize(ids).then(result => {if (result) setOriginalResult(result);}); };
+  const saveEdits = async (groups: import("../types/api").ManualRouteInput[]) => { setEditLoading(true); try { const result = await api.recalculateRoutes(lastSelection.current, groups); applyResult(result); setManuallyModified(true); setEditing(false); } finally { setEditLoading(false); } };
+  const exportResult = (kind: "uber" | "json" | "csv" | "text") => { if (!state.result) return; if (kind === "uber") { const previews = buildUberPreview(state.result, employees); setExportPreview(JSON.stringify(previews, null, 2)); } else { const content = kind === "json" ? internalJson(state.result, employees) : kind === "csv" ? operationalCsv(state.result, employees) : routeText(state.result); const blob = new Blob([content], {type: kind === "csv" ? "text/csv;charset=utf-8" : "text/plain;charset=utf-8"}); const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = `rotas.${kind === "json" ? "json" : kind === "csv" ? "csv" : "txt"}`; anchor.click(); URL.revokeObjectURL(url); } };
   return <>
     <div className="page-heading">
       <div><p className="eyebrow">Planejamento operacional</p><h1 className="page-title">Rotas de transporte</h1>
@@ -121,8 +132,9 @@ export function RoutesPage({employeeCount}: {employeeCount?: number}) {
       onRetry={() => void optimize(lastSelection.current)} />}
     {state.result && <>
       {(loading || state.status === "error") && <p className="section-note result-context">O resultado anterior continua disponível abaixo.</p>}
-      <Results key={state.status === "success" ? "current" : "previous"} result={state.result} />
+      {editing ? <ManualRouteEditor result={state.result} employees={employees} loading={editLoading} onCancel={() => setEditing(false)} onRestore={() => {if (originalResult) {applyResult(originalResult); setManuallyModified(false); setEditing(false);}}} onSave={saveEdits} /> : <Results key={state.status === "success" ? "current" : "previous"} result={state.result} manuallyModified={manuallyModified} onEdit={() => setEditing(true)} onExport={exportResult} />}
     </>}
     {selectionOpen && <EmployeeSelectionModal employees={employees} onClose={() => setSelectionOpen(false)} onConfirm={confirmSelection} />}
+    {exportPreview && <div className="modal-backdrop" role="dialog" aria-modal="true"><div className="modal-card"><div className="modal-header"><h2>Prévia Uber</h2><button className="icon-button" aria-label="Fechar prévia" onClick={() => setExportPreview(undefined)}>×</button></div><p className="section-note">Esta prévia não cria corridas nem envia dados à Uber.</p><pre className="export-preview">{exportPreview}</pre><div className="modal-actions"><button className="button button-primary" onClick={() => void navigator.clipboard?.writeText(exportPreview)}>Copiar JSON</button><button className="button button-quiet" onClick={() => setExportPreview(undefined)}>Fechar</button></div></div></div>}
   </>;
 }

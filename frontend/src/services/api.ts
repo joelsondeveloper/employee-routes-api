@@ -1,6 +1,10 @@
-import type {ApiErrorBody, Employee, EmployeeWriteInput, GeocodingPreview, OptimizationResponse} from "../types/api";
+import type {ApiErrorBody, Employee, EmployeeWriteInput, GeocodingPreview, OptimizationResponse, ManualRouteInput} from "../types/api";
 
-const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/$/, "");
+const configuredApiUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:3000" : "");
+if (import.meta.env.PROD && !configuredApiUrl) {
+  throw new Error("VITE_API_URL is required in production builds.");
+}
+const API_URL = configuredApiUrl.replace(/\/$/, "");
 
 export class ApiError extends Error {
   constructor(public readonly status: number, public readonly code?: string, message?: string) {
@@ -55,6 +59,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   health: () => request<{status: string}>("/health"),
   optimizeRoutes: (employeeIds: string[]) => request<OptimizationResponse>("/api/routes/optimize", {method: "POST", body: JSON.stringify({employeeIds})}),
+  recalculateRoutes: (employeeIds: string[], groups: ManualRouteInput[]) => request<OptimizationResponse>("/api/routes/recalculate", {method: "POST", body: JSON.stringify({employeeIds, groups})}),
   listEmployees: () => request<Employee[]>("/employees"),
   createEmployee: (input: EmployeeWriteInput) =>
     request<Employee>("/employees", {method: "POST", body: JSON.stringify(input)}),
