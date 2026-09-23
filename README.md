@@ -6,6 +6,7 @@ Aplicação para cadastro de funcionários e organização de rotas de transport
 
 - Node.js 22 ou superior
 - uma chave da LocationIQ para o backend calcular geocoding e rotas
+- PostgreSQL para o runtime multi-tenant V1.3
 
 ## Backend
 
@@ -22,6 +23,10 @@ Configure `LOCATIONIQ_API_KEY` no `.env`. Para desenvolvimento com o frontend se
 ```ini
 FRONTEND_ORIGIN=http://127.0.0.1:5173
 ```
+
+O runtime PostgreSQL usa `DATABASE_URL` e executa migrations na inicialização. Em produção, também são obrigatórios `GOOGLE_CLIENT_ID`, `LOCATIONIQ_API_KEY` e `FRONTEND_ORIGIN`. O `GOOGLE_CLIENT_ID` é público e pode aparecer no frontend como `VITE_GOOGLE_CLIENT_ID`; nenhuma chave secreta deve ser colocada em uma variável `VITE_*`.
+
+O SQLite continua disponível apenas como fallback local/teste quando `DATABASE_URL` não está definida. Em produção o servidor encerra durante o startup se PostgreSQL ou Google não estiverem configurados.
 
 O backend fica disponível em `http://localhost:3000`.
 
@@ -56,7 +61,15 @@ O frontend fica disponível em `http://127.0.0.1:5173`. O arquivo `frontend/.env
 VITE_API_URL=http://localhost:3000
 ```
 
-O frontend nunca recebe a chave da LocationIQ; o navegador conversa somente com a API do backend.
+O frontend nunca recebe a chave da LocationIQ; o navegador conversa somente com a API do backend. Em produção, a sessão Google usa cookie `HttpOnly`, `Secure` e `SameSite=None` para o frontend e backend em domínios diferentes.
+
+Quando a autenticação Google está habilitada, configure no `frontend/.env`:
+
+```ini
+VITE_GOOGLE_CLIENT_ID=seu-client-id-web.apps.googleusercontent.com
+```
+
+O primeiro login cria uma organização inicial e a membership `ADMIN`; todos os endpoints operacionais filtram funcionários pela organização dessa identidade.
 
 ## Testes e validação
 

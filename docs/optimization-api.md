@@ -12,6 +12,22 @@ Successful response (`200`):
 
 The health endpoint does not call LocationIQ.
 
+## Authentication
+
+Production uses Google Identity Services. The frontend posts the Google ID token to `POST /api/auth/google`:
+
+```json
+{"credential":"<google-id-token>"}
+```
+
+The backend validates the token and creates the first user, personal organization and `ADMIN` membership when needed. Subsequent private requests must include:
+
+```http
+Authorization: Bearer <google-id-token>
+```
+
+Private endpoints are `/employees`, `/api/geocoding/preview`, `/api/routes/optimize` and `/api/routes/recalculate`. `/health` and the Google sign-in endpoint remain public. Every employee query is scoped to the organization resolved from the validated identity.
+
 ## Employee coordinates
 
 `POST /employees` and `PUT /employees/:id` accept optional `latitude` and `longitude`.
@@ -45,7 +61,7 @@ Request body:
 {"employeeIds":["employee-1","employee-2"]}
 ```
 
-`employeeIds` is required. It must be a non-empty array of unique employee IDs. Unknown IDs and duplicate IDs return `400`. The server loads only those employees from SQLite, uses the configured company origin, creates a routing provider and invokes `optimizeEmployeeRoutes` once. Requests with the same normalized selection may share one in-flight execution; different selections never share results. The request may take more than a minute.
+`employeeIds` is required. It must be a non-empty array of unique employee IDs. Unknown IDs and duplicate IDs return `400`. The server loads only those employees from PostgreSQL belonging to the authenticated organization, uses the configured company origin, creates a routing provider and invokes `optimizeEmployeeRoutes` once. Requests with the same organization and normalized selection may share one in-flight execution; different selections never share results. The request may take more than a minute.
 
 Successful response (`200`):
 
@@ -115,7 +131,7 @@ Current mappings:
 
 ## Postman smoke test
 
-1. Start the server with the configured `.env` file.
+1. Configure `DATABASE_URL`, `GOOGLE_CLIENT_ID`, `LOCATIONIQ_API_KEY` and `FRONTEND_ORIGIN` in the backend environment.
 2. Send `GET http://localhost:3000/health`; expect `200` and `{"status":"ok"}`.
 3. Send `POST http://localhost:3000/api/routes/optimize` with `Content-Type: application/json` and a body such as `{"employeeIds":["employee-1"]}`; expect `200` and the groups/issues/summary response. A populated database may take more than a minute because the request performs the complete optimization.
 

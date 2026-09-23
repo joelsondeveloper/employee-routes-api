@@ -107,3 +107,21 @@ export interface ApiErrorBody {
   };
   message?: string;
 }
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl?: string;
+}
+
+export interface AuthOrganization {
+  id: string;
+  name: string;
+}
+
+export interface AuthSession {
+  user: AuthUser;
+  organization: AuthOrganization;
+  role: "ADMIN" | "OPERATOR";
+}

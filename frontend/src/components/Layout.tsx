@@ -1,15 +1,18 @@
 import {useState} from "react";
 import type {ReactNode} from "react";
 import {Map, Menu, Route, Users, X} from "lucide-react";
+import type {AuthSession} from "../types/api";
 
 interface LayoutProps {
   page: "routes" | "employees";
   onNavigate: (page: "routes" | "employees") => void;
   children: ReactNode;
   apiStatus?: "checking" | "online" | "offline";
+  session?: AuthSession;
+  onLogout?: () => void;
 }
 
-export function Layout({page, onNavigate, children, apiStatus = "checking"}: LayoutProps) {
+export function Layout({page, onNavigate, children, apiStatus = "checking", session, onLogout}: LayoutProps) {
   const [open, setOpen] = useState(false);
   const navigate = (next: "routes" | "employees") => { onNavigate(next); setOpen(false); };
   const statusLabel = apiStatus === "online" ? "API operacional conectada" : apiStatus === "offline" ? "API indisponível" : "Verificando API...";
@@ -30,7 +33,7 @@ export function Layout({page, onNavigate, children, apiStatus = "checking"}: Lay
       <main className="main-area">
         <header className="topbar">
           <button className="mobile-nav-toggle" aria-label={open ? "Fechar menu" : "Abrir menu"} aria-expanded={open} aria-controls="main-navigation" onClick={() => setOpen((value) => !value)}>{open ? <X size={18} /> : <Menu size={18} />}</button>
-          <div className="topbar-context"><span className={`online-dot ${apiStatus}`} />{statusLabel}</div>
+          <div className="topbar-context"><span className={`online-dot ${apiStatus}`} />{statusLabel}{session && <><span className="user-name">{session.user.name} · {session.organization.name}</span><button className="button-link" onClick={onLogout}>Sair</button></>}</div>
         </header>
         <div className="content">{children}</div>
       </main>

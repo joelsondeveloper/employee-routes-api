@@ -1,4 +1,4 @@
-import database from "../database/database.js";
+import {getDatabase} from "../database/database.js";
 import { optimizeEmployeeRoutes } from "./employee-route-optimization.service.js";
 import { LocationIQRoutingProvider } from "../routing/providers/locationiq-routing.provider.js";
 import type { Employee } from "../employees/employee.types.js";
@@ -32,7 +32,7 @@ async function main() {
   // 2. BUSCAR FUNCIONÁRIOS CADASTRADOS
   // --------------------------------------------------
 
-  const employees = database
+  const employees = getDatabase()
     .prepare(`
       SELECT
         id,

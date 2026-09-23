@@ -1,10 +1,13 @@
-import type {ApiErrorBody, Employee, EmployeeWriteInput, GeocodingPreview, OptimizationResponse, ManualRouteInput} from "../types/api";
+import type {ApiErrorBody, AuthSession, Employee, EmployeeWriteInput, GeocodingPreview, OptimizationResponse, ManualRouteInput} from "../types/api";
 
 const configuredApiUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:3000" : "");
 if (import.meta.env.PROD && !configuredApiUrl) {
   throw new Error("VITE_API_URL is required in production builds.");
 }
 const API_URL = configuredApiUrl.replace(/\/$/, "");
+let authToken: string | undefined;
+
+export function setApiAuthToken(token: string | undefined): void { authToken = token; }
 
 export class ApiError extends Error {
   constructor(public readonly status: number, public readonly code?: string, message?: string) {
@@ -36,8 +39,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     response = await fetch(`${API_URL}${path}`, {
       ...init,
+      credentials: "include",
       headers: {
         ...(init?.body ? {"Content-Type": "application/json"} : {}),
+        ...(authToken ? {Authorization: `Bearer ${authToken}`} : {}),
         ...init?.headers,
       },
     });
@@ -51,6 +56,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   catch { throw new ApiError(response.status, "INVALID_RESPONSE"); }
 
   if (!response.ok) {
+    if (response.status === 401 && typeof window !== "undefined") window.dispatchEvent(new Event("employee-routes-auth-expired"));
     throw new ApiError(response.status, errorCode(body as ApiErrorBody, path, response.status));
   }
   return body as T;
@@ -69,4 +75,7 @@ export const api = {
     request<void>(`/employees/${encodeURIComponent(id)}`, {method: "DELETE"}),
   geocodePreview: (address: string) =>
     request<GeocodingPreview>("/api/geocoding/preview", {method: "POST", body: JSON.stringify({address})}),
+  googleLogin: (credential: string) => request<AuthSession>("/api/auth/google", {method: "POST", body: JSON.stringify({credential})}),
+  currentUser: () => request<AuthSession>("/api/auth/me"),
+  logout: () => request<void>("/api/auth/logout", {method: "POST"}),
 };

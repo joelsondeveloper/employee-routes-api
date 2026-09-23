@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
-import database from "../database/database.js";
+import {createDefaultEmployeeRepository, fromLegacyEmployeeStore, type LegacyEmployeeStore} from "../database/employee-repository.js";
+import type {EmployeeRepository} from "../database/repository.types.js";
 import { company } from "../company/company.config.js";
 import type { Employee } from "../employees/employee.types.js";
 import { optimizeEmployeeRoutes } from "./employee-route-optimization.service.js";
@@ -25,12 +26,9 @@ import type {
 } from "./optimization.http.types.js";
 import { recalculateManualGroups, type ManualRouteGroupInput } from "./manual-route.service.js";
 
-interface EmployeeStore {
-  prepare(sql: string): {all(): unknown[]};
-}
-
 export interface OptimizationRouteDependencies {
-  employeeStore?: EmployeeStore;
+  employeeRepository?: EmployeeRepository;
+  employeeStore?: LegacyEmployeeStore;
   routingProviderFactory?: () => RoutingProvider;
   optimize?: typeof optimizeEmployeeRoutes;
 }
@@ -179,7 +177,7 @@ function errorResponse(error: unknown): {status: number; body: HttpErrorResponse
 
 export function createOptimizationRouter(dependencies: OptimizationRouteDependencies = {}): Router {
   const router = Router();
-  const employeeStore = dependencies.employeeStore ?? database;
+  const employeeRepository = dependencies.employeeRepository ?? (dependencies.employeeStore ? fromLegacyEmployeeStore(dependencies.employeeStore) : createDefaultEmployeeRepository());
   const makeProvider = dependencies.routingProviderFactory ?? (() => new LocationIQRoutingProvider());
   const runOptimization = dependencies.optimize ?? optimizeEmployeeRoutes;
   const inFlight = new Map<string, Promise<OptimizeRoutesResponse>>();
@@ -203,22 +201,21 @@ export function createOptimizationRouter(dependencies: OptimizationRouteDependen
       return response.status(400).json({error: {code: "INVALID_REQUEST", message: "employeeIds não pode conter IDs duplicados."}} satisfies HttpErrorResponse);
     }
 
-    const key = [...employeeIds].sort().join("\u001f");
+    const organizationId = request.auth?.organizationId ?? "legacy";
+    const key = `${organizationId}\u001e${[...employeeIds].sort().join("\u001f")}`;
     let execution = inFlight.get(key);
 
     if (!execution) {
-      execution = Promise.resolve().then(() => {
-        const allEmployees = employeeStore.prepare(
-          "SELECT id, name, address, phone, latitude, longitude FROM employees ORDER BY id",
-        ).all() as Employee[];
-        const byId = new Map(allEmployees.map((employee) => [employee.id, employee]));
+      execution = Promise.resolve().then(async () => {
+        const employees = await employeeRepository.findByIds(employeeIds, organizationId);
+        const byId = new Map(employees.map((employee) => [employee.id, employee]));
         const missing = employeeIds.filter((id) => !byId.has(id));
         if (missing.length) {
           throw new Error(`Unknown employee IDs: ${missing.join(", ")}`);
         }
-        const employees = employeeIds.map((id) => byId.get(id)!);
+        const selectedEmployees = employeeIds.map((id) => byId.get(id)!);
         const origin: RoutingPoint = {id: "company", ...company.coordinates};
-        return runOptimization(origin, employees, makeProvider()).then((result) => responseForResult(result, employees, origin));
+        return runOptimization(origin, selectedEmployees, makeProvider()).then((result) => responseForResult(result, selectedEmployees, origin));
       }).finally(() => { inFlight.delete(key); });
       inFlight.set(key, execution);
     }
@@ -241,7 +238,8 @@ export function createOptimizationRouter(dependencies: OptimizationRouteDependen
       return response.status(400).json({error: {code: "INVALID_REQUEST", message: "Informe employeeIds e groups válidos."}} satisfies HttpErrorResponse);
     }
     const employeeIds = body.employeeIds as string[];
-    const allEmployees = employeeStore.prepare("SELECT id, name, address, phone, latitude, longitude FROM employees ORDER BY id").all() as Employee[];
+    const organizationId = request.auth?.organizationId ?? "legacy";
+    const allEmployees = await employeeRepository.list(organizationId);
     const byId = new Map(allEmployees.map(employee => [employee.id, employee]));
     if (employeeIds.some(id => !byId.has(id)) || new Set(employeeIds).size !== employeeIds.length) {
       return response.status(400).json({error: {code: "EMPLOYEE_NOT_FOUND", message: "A seleção contém funcionários inválidos ou duplicados."}} satisfies HttpErrorResponse);
