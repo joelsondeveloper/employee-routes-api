@@ -1,9 +1,12 @@
 import type {ApiErrorBody, AuthSession, Employee, EmployeeWriteInput, GeocodingPreview, OptimizationResponse, ManualRouteInput} from "../types/api";
 
-const configuredApiUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:3000" : "");
-if (import.meta.env.PROD && !configuredApiUrl) {
-  throw new Error("VITE_API_URL is required in production builds.");
-}
+// In production the Vercel deployment proxies API paths to Railway. Keeping
+// this empty makes the browser request the proxy on its own origin, so the
+// HttpOnly session cookie is first-party. Development can still use a direct
+// API URL when needed.
+const configuredApiUrl = import.meta.env.DEV
+  ? (import.meta.env.VITE_API_URL || "http://localhost:3000")
+  : "";
 const API_URL = configuredApiUrl.replace(/\/$/, "");
 let authToken: string | undefined;
 

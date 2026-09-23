@@ -1,3 +1,9 @@
 {
-  "rewrites": [{"source": "/(.*)", "destination": "/index.html"}]
+  "rewrites": [
+    {"source": "/api/:path*", "destination": "https://employee-routes-api-production.up.railway.app/api/:path*"},
+    {"source": "/employees", "destination": "https://employee-routes-api-production.up.railway.app/employees"},
+    {"source": "/employees/:path*", "destination": "https://employee-routes-api-production.up.railway.app/employees/:path*"},
+    {"source": "/health", "destination": "https://employee-routes-api-production.up.railway.app/health"},
+    {"source": "/(.*)", "destination": "/index.html"}
+  ]
 }
