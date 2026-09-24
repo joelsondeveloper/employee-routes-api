@@ -69,6 +69,9 @@ export const api = {
   health: () => request<{status: string}>("/health"),
   optimizeRoutes: (employeeIds: string[]) => request<OptimizationResponse>("/api/routes/optimize", {method: "POST", body: JSON.stringify({employeeIds})}),
   recalculateRoutes: (employeeIds: string[], groups: ManualRouteInput[]) => request<OptimizationResponse>("/api/routes/recalculate", {method: "POST", body: JSON.stringify({employeeIds, groups})}),
+  listDemoEmployees: () => request<Employee[]>("/api/demo/employees"),
+  optimizeDemoRoutes: (employeeIds: string[]) => request<OptimizationResponse>("/api/demo/routes/optimize", {method: "POST", body: JSON.stringify({employeeIds})}),
+  recalculateDemoRoutes: (employeeIds: string[], groups: ManualRouteInput[]) => request<OptimizationResponse>("/api/demo/routes/recalculate", {method: "POST", body: JSON.stringify({employeeIds, groups})}),
   listEmployees: () => request<Employee[]>("/employees"),
   createEmployee: (input: EmployeeWriteInput) =>
     request<Employee>("/employees", {method: "POST", body: JSON.stringify(input)}),

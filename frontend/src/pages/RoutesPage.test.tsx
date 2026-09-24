@@ -75,6 +75,27 @@ describe("RoutesPage", () => {
     expect(screen.getAllByRole("button", {name: "Gerar rotas"})).toHaveLength(2);
   });
 
+  it("loads the isolated demo dataset and sends only selected demo employees", async () => {
+    const realEmployee = {id: "real-1", name: "Real", address: "Rua Real", phone: "1", latitude: -8.1, longitude: -34.9};
+    const demoEmployee = {id: "demo-01", name: "Lucas Almeida", address: "Centro, Cabo", phone: "(81) 99000-0001", latitude: -8.29, longitude: -35.03};
+    vi.spyOn(api, "listEmployees").mockResolvedValue([realEmployee]);
+    vi.spyOn(api, "listDemoEmployees").mockResolvedValue([demoEmployee]);
+    const optimizeDemo = vi.spyOn(api, "optimizeDemoRoutes").mockResolvedValue({...resultFixture(), groups: [], issues: [], summary: {...resultFixture().summary, totalEmployees: 1, totalGroups: 0, acceptableGroups: 0, rejectedGroups: 0, unroutableEmployees: 0}});
+    const user = userEvent.setup();
+    render(<RoutesPage />);
+
+    await user.click(screen.getByRole("button", {name: "Usar dados de demonstração"}));
+    expect(await screen.findByText("Modo demonstração")).toBeInTheDocument();
+    expect(screen.getByText("1 funcionário fictício disponível. Nenhum dado será salvo na organização.")).toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", {name: "Gerar rotas"})[0]!);
+    await user.click(screen.getByRole("checkbox", {name: /Lucas Almeida/}));
+    await user.click(screen.getByRole("button", {name: "Gerar rotas para 1"}));
+    await waitFor(() => expect(optimizeDemo).toHaveBeenCalledWith(["demo-01"]));
+    await user.click(screen.getByRole("button", {name: "Sair do modo demonstração"}));
+    await waitFor(() => expect(screen.getByText("Nenhuma rota gerada")).toBeInTheDocument());
+    expect(screen.queryByText("Modo demonstração")).not.toBeInTheDocument();
+  });
+
   it("shows honest loading feedback and renders accepted, rejected and issue states", async () => {
     let resolveRequest!: (value: OptimizationResponse) => void;
     vi.spyOn(api, "optimizeRoutes").mockReturnValue(new Promise((resolve) => { resolveRequest = resolve; }));

@@ -28,6 +28,19 @@ Authorization: Bearer <google-id-token>
 
 Private endpoints are `/employees`, `/api/geocoding/preview`, `/api/routes/optimize` and `/api/routes/recalculate`. `/health` and the Google sign-in endpoint remain public. Every employee query is scoped to the organization resolved from the validated identity.
 
+## Demonstration mode
+
+The authenticated demonstration endpoints expose a fixed, read-only dataset of 30 fictitious employees. They are kept in server memory and are never written to PostgreSQL or returned by the normal `/employees` endpoint.
+
+`GET /api/demo/employees` returns the 30 available demo employees. The normal optimization contract is reused under the demo namespace:
+
+```json
+POST /api/demo/routes/optimize
+{"employeeIds":["demo-01","demo-02"]}
+```
+
+Manual recalculation is likewise available at `POST /api/demo/routes/recalculate`. Both routes require the same authenticated session as normal operations, validate IDs against the demo dataset, and use the same optimization and routing services. Exiting demo mode is a frontend session action; it discards the current demo selection/result and reloads the organization's employees.
+
 ## Employee coordinates
 
 `POST /employees` and `PUT /employees/:id` accept optional `latitude` and `longitude`.

@@ -8,12 +8,14 @@ import {DefaultAuthService} from "./auth/auth.service.js";
 import {GoogleAuthService} from "./auth/google-auth.service.js";
 import type {AuthDependencies, AuthService} from "./auth/auth.types.js";
 import {createDefaultAuthRepository} from "./database/auth-repository.js";
+import {createDemoRouter, type DemoRouteDependencies} from "./demo/demo.routes.js";
 
 export interface AppOptions {
   optimization?: OptimizationRouteDependencies;
   employees?: EmployeeRouteDependencies;
   geocoding?: GeocodingRouteDependencies;
   auth?: AuthDependencies;
+  demo?: DemoRouteDependencies;
   frontendOrigin?: string;
   /** Production enables auth by default; injected test stores remain opt-in. */
   requireAuthentication?: boolean;
@@ -64,6 +66,7 @@ export function createApp(options: AppOptions = {}): Express {
   app.use("/employees", authMiddleware, createEmployeeRouter(options.employees));
   app.use("/api/geocoding", authMiddleware, createGeocodingRouter(options.geocoding));
   app.use("/api/routes", authMiddleware, createOptimizationRouter(options.optimization));
+  app.use("/api/demo", authMiddleware, createDemoRouter(options.demo));
 
   app.use((error: unknown, _request: Request, response: Response, next: NextFunction) => {
     if (response.headersSent) return next(error);
