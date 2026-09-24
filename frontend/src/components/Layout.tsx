@@ -10,9 +10,11 @@ interface LayoutProps {
   apiStatus?: "checking" | "online" | "offline";
   session?: AuthSession;
   onLogout?: () => void;
+  mode?: "guest" | "normal";
+  onExitGuest?: () => void;
 }
 
-export function Layout({page, onNavigate, children, apiStatus = "checking", session, onLogout}: LayoutProps) {
+export function Layout({page, onNavigate, children, apiStatus = "checking", session, onLogout, mode = "normal", onExitGuest}: LayoutProps) {
   const [open, setOpen] = useState(false);
   const navigate = (next: "routes" | "employees") => { onNavigate(next); setOpen(false); };
   const statusLabel = apiStatus === "online" ? "API operacional conectada" : apiStatus === "offline" ? "API indisponível" : "Verificando API...";
@@ -33,7 +35,7 @@ export function Layout({page, onNavigate, children, apiStatus = "checking", sess
       <main className="main-area">
         <header className="topbar">
           <button className="mobile-nav-toggle" aria-label={open ? "Fechar menu" : "Abrir menu"} aria-expanded={open} aria-controls="main-navigation" onClick={() => setOpen((value) => !value)}>{open ? <X size={18} /> : <Menu size={18} />}</button>
-          <div className="topbar-context"><span className={`online-dot ${apiStatus}`} />{statusLabel}{session && <><span className="user-name">{session.user.name} · {session.organization.name}</span><button className="button-link" onClick={onLogout}>Sair</button></>}</div>
+          <div className="topbar-context"><span className={`online-dot ${apiStatus}`} />{statusLabel}{mode === "guest" ? <><span className="user-name">Modo visitante · dados salvos neste navegador</span><button className="button-link" onClick={onExitGuest}>Sair</button></> : session && <><span className="user-name">{session.user.name} · {session.organization.name}</span><button className="button-link" onClick={onLogout}>Sair</button></>}</div>
         </header>
         <div className="content">{children}</div>
       </main>

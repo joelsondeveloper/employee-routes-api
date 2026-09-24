@@ -6,14 +6,15 @@ import {friendlyApiError} from "../lib/messages";
 import {formatPhone} from "../lib/formatters";
 import {Modal} from "../components/Modal";
 import {EmployeeLocationMap, type EmployeeCoordinates} from "../components/EmployeeLocationMap";
+import {createGuestEmployeeId} from "../guest/GuestContext";
 
 type FormValues = Pick<Employee, "name" | "address" | "phone">;
 const emptyForm: FormValues = {name: "", address: "", phone: ""};
 const errorMessage = (error: unknown, fallback: string) =>
   friendlyApiError(error instanceof ApiError ? error.code : undefined, fallback);
 
-function EmployeeModal({employee, onClose, onSaved}: {
-  employee?: Employee; onClose: () => void; onSaved: (employee: Employee) => void;
+function EmployeeModal({employee, onClose, onSaved, guest = false}: {
+  employee?: Employee; onClose: () => void; onSaved: (employee: Employee) => void; guest?: boolean;
 }) {
   const [values, setValues] = useState<FormValues>(employee
     ? {name: employee.name, address: employee.address, phone: employee.phone} : emptyForm);
@@ -30,7 +31,7 @@ function EmployeeModal({employee, onClose, onSaved}: {
     if (!address) { setError("Preencha o endereço antes de localizar."); return; }
     setLocating(true); setError("");
     try {
-      const found = await api.geocodePreview(address);
+      const found = guest ? await api.guestGeocodePreview(address) : await api.geocodePreview(address);
       setCoordinates(found);
       setLocationState("found");
     } catch (caught) {
@@ -45,8 +46,11 @@ function EmployeeModal({employee, onClose, onSaved}: {
     pending.current = true;
     setSaving(true); setError("");
     try {
+      if (guest && !coordinates) { setError("Localize o endereço antes de salvar o funcionário visitante."); return; }
       const payload = coordinates ? {...input, latitude: coordinates.latitude, longitude: coordinates.longitude} : input;
-      const saved = employee ? await api.updateEmployee(employee.id, payload) : await api.createEmployee(payload);
+      const saved = guest
+        ? {id: employee?.id ?? createGuestEmployeeId(), ...payload, latitude: coordinates!.latitude, longitude: coordinates!.longitude}
+        : employee ? await api.updateEmployee(employee.id, payload) : await api.createEmployee(payload);
       onSaved(saved); onClose();
     } catch (caught) {
       setError(errorMessage(caught, "Não foi possível salvar o funcionário."));
@@ -108,30 +112,33 @@ function DeleteModal({employee, onClose, onConfirm, deleting, error}: {
   </Modal>;
 }
 
-export function EmployeesPage({onCountChange}: {onCountChange?: (count: number) => void}) {
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(true);
+export function EmployeesPage({onCountChange, mode = "normal", employees: guestEmployees, onGuestEmployeesChange, onRestoreGuest}: {onCountChange?: (count: number) => void; mode?: "normal" | "guest"; employees?: Employee[]; onGuestEmployeesChange?: (employees: Employee[]) => void; onRestoreGuest?: () => Promise<void>}) {
+  const guest = mode === "guest";
+  const [employees, setEmployeesState] = useState<Employee[]>(guestEmployees ?? []);
+  const [loading, setLoading] = useState(!guest);
   const [error, setError] = useState("");
   const [modal, setModal] = useState<"create" | Employee>();
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [confirming, setConfirming] = useState<Employee>();
 
+  const setEmployees = (next: Employee[]) => { setEmployeesState(next); if (guest) onGuestEmployeesChange?.(next); };
   const load = async () => {
+    if (guest) return;
     setLoading(true); setError("");
     try { setEmployees(await api.listEmployees()); }
     catch (caught) { setError(errorMessage(caught, "Não foi possível carregar os funcionários.")); }
     finally { setLoading(false); }
   };
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { if (guest) { setEmployeesState(guestEmployees ?? []); setLoading(false); } else void load(); }, [guest, guestEmployees]);
   useEffect(() => { if (!loading && !error) onCountChange?.(employees.length); }, [employees, loading, error, onCountChange]);
 
   const remove = async (employee: Employee) => {
     if (deleting) return;
     setDeleting(true); setDeleteError("");
     try {
-      await api.deleteEmployee(employee.id);
-      setEmployees((current) => current.filter((item) => item.id !== employee.id));
+      if (guest) setEmployees(employees.filter((item) => item.id !== employee.id));
+      else { await api.deleteEmployee(employee.id); setEmployees(employees.filter((item) => item.id !== employee.id)); }
       setConfirming(undefined);
     } catch (caught) { setDeleteError(errorMessage(caught, "Não foi possível excluir o funcionário.")); }
     finally { setDeleting(false); }
@@ -141,9 +148,10 @@ export function EmployeesPage({onCountChange}: {onCountChange?: (count: number) 
     <div className="page-heading">
       <div><p className="eyebrow">Base operacional</p><h1 className="page-title">Funcionários</h1>
         <p className="page-description">Consulte e mantenha os funcionários que entram no planejamento de transporte.</p>
+        {guest && <p className="section-note">Dados salvos somente neste navegador.</p>}
         {!loading && !error && <p className="section-note">{employees.length} funcionários cadastrados</p>}
       </div>
-      <button className="button button-primary" onClick={() => setModal("create")}><Plus size={16} />Novo funcionário</button>
+      <div className="page-heading-actions"><button className="button button-primary" onClick={() => setModal("create")}><Plus size={16} />Novo funcionário</button>{guest && <button className="button button-quiet" onClick={() => { if (window.confirm("Isso substituirá os dados deste modo visitante pelos 30 funcionários de demonstração originais.")) void onRestoreGuest?.(); }}>Restaurar dados de demonstração</button>}</div>
     </div>
     {error && <div className="form-error" role="alert">{error}
       <button className="button button-quiet" onClick={() => void load()}>Tentar novamente</button>
@@ -170,8 +178,8 @@ export function EmployeesPage({onCountChange}: {onCountChange?: (count: number) 
           })}</tbody>
         </table>}
     </div>
-    {modal && <EmployeeModal employee={modal === "create" ? undefined : modal} onClose={() => setModal(undefined)}
-      onSaved={(saved) => setEmployees((current) => modal === "create" ? [saved, ...current] : current.map((item) => item.id === saved.id ? saved : item))} />}
+    {modal && <EmployeeModal guest={guest} employee={modal === "create" ? undefined : modal} onClose={() => setModal(undefined)}
+      onSaved={(saved) => setEmployees(modal === "create" ? [saved, ...employees] : employees.map((item) => item.id === saved.id ? saved : item))} />}
     {confirming && <DeleteModal employee={confirming} onClose={() => setConfirming(undefined)}
       onConfirm={() => void remove(confirming)} deleting={deleting} error={deleteError} />}
   </>;

@@ -3,24 +3,28 @@ import {useMemo, useState} from "react";
 import {Modal} from "./Modal";
 import type {Employee} from "../types/api";
 
-export function EmployeeSelectionModal({employees, onClose, onConfirm}: {
+export function EmployeeSelectionModal({employees, onClose, onConfirm, maxSelection}: {
   employees: Employee[];
   onClose: () => void;
   onConfirm: (ids: string[]) => void;
+  maxSelection?: number;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
+  const limit = maxSelection ?? employees.length;
   const filtered = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
     return normalized ? employees.filter((employee) => employee.name.toLocaleLowerCase().includes(normalized)) : employees;
   }, [employees, query]);
-  const allSelected = employees.length > 0 && selected.size === employees.length;
+  const selectionTarget = Math.min(employees.length, limit);
+  const allSelected = selectionTarget > 0 && selected.size === selectionTarget;
   const toggle = (id: string) => setSelected((current) => {
     const next = new Set(current);
-    if (next.has(id)) next.delete(id); else next.add(id);
+    if (next.has(id)) next.delete(id);
+    else if (next.size < limit) next.add(id);
     return next;
   });
-  const selectAll = () => setSelected(allSelected ? new Set() : new Set(employees.map((employee) => employee.id)));
+  const selectAll = () => setSelected(allSelected ? new Set() : new Set(employees.slice(0, limit).map((employee) => employee.id)));
   return <Modal titleId="employee-selection-title" onClose={onClose}>
     <div className="modal-header"><div><h2 id="employee-selection-title" className="modal-title">Selecionar funcionários</h2>
       <p className="modal-copy">Quem precisará de transporte nesta execução?</p></div>
@@ -30,6 +34,7 @@ export function EmployeeSelectionModal({employees, onClose, onConfirm}: {
         <input className="form-input" data-initial-focus placeholder="Buscar funcionário" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
       <div className="selection-toolbar"><button type="button" className="button button-quiet" onClick={selectAll} disabled={!employees.length}>
         <Check size={14} />{allSelected ? "Limpar seleção" : "Selecionar todos"}</button>
+        {maxSelection && employees.length > maxSelection && <span className="selection-limit">Até {maxSelection} funcionários por otimização.</span>}
         <span className="selection-count" aria-live="polite">{selected.size} de {employees.length} selecionados</span></div>
       <div className="employee-selection-list" role="group" aria-label="Funcionários disponíveis">
         {filtered.map((employee) => <label className="employee-option" key={employee.id}>
@@ -43,3 +48,4 @@ export function EmployeeSelectionModal({employees, onClose, onConfirm}: {
       <button type="button" className="button button-primary" disabled={selected.size === 0} onClick={() => onConfirm([...selected])}><Users size={15} />Gerar rotas para {selected.size}</button></div>
   </Modal>;
 }
+

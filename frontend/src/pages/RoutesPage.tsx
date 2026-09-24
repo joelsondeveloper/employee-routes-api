@@ -118,11 +118,9 @@ function Results({result, manuallyModified, onEdit, onExport}: {result: Optimiza
   </>;
 }
 
-export function RoutesPage({employeeCount}: {employeeCount?: number}) {
-  const {state, optimize, applyResult, reset} = useOptimization();
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [demoMode, setDemoMode] = useState(false);
-  const [demoLoading, setDemoLoading] = useState(false);
+export function RoutesPage({employeeCount, mode = "normal", employees: guestEmployees}: {employeeCount?: number; mode?: "normal" | "guest"; employees?: Employee[]; onEmployeesChange?: (employees: Employee[]) => void}) {
+  const {state, optimize, applyResult} = useOptimization();
+  const [employees, setEmployees] = useState<Employee[]>(guestEmployees ?? []);
   const [selectionOpen, setSelectionOpen] = useState(false);
   const [employeeLoadError, setEmployeeLoadError] = useState("");
   const [editing, setEditing] = useState(false);
@@ -131,89 +129,52 @@ export function RoutesPage({employeeCount}: {employeeCount?: number}) {
   const [exportPreview, setExportPreview] = useState<string>();
   const [manuallyModified, setManuallyModified] = useState(false);
   const lastSelection = useRef<string[]>([]);
-  const lastMode = useRef<OptimizationMode>("normal");
-  const pageMode = useRef<OptimizationMode>("normal");
+  const lastMode = useRef<OptimizationMode>(mode);
+  const lastSelectedEmployees = useRef<Employee[]>([]);
   const loading = state.status === "loading";
   useEffect(() => {
+    if (mode === "guest") { setEmployees(guestEmployees ?? []); return; }
     let active = true;
     void api.listEmployees().then((loadedEmployees) => {
-      if (active && pageMode.current === "normal") setEmployees(loadedEmployees);
-    }).catch(() => { if (active && pageMode.current === "normal") setEmployeeLoadError("Não foi possível carregar os funcionários para a seleção."); });
+      if (active) setEmployees(loadedEmployees);
+    }).catch(() => { if (active) setEmployeeLoadError("Não foi possível carregar os funcionários para a seleção."); });
     return () => { active = false; };
-  }, []);
-  const openSelection = () => { if (!loading && !demoLoading) setSelectionOpen(true); };
-  const enterDemoMode = async () => {
-    if (loading || demoLoading) return;
-    pageMode.current = "demo";
-    setDemoLoading(true);
-    setEmployeeLoadError("");
-    try {
-      const demoEmployees = await api.listDemoEmployees();
-      setEmployees(demoEmployees);
-      setDemoMode(true);
-      lastSelection.current = [];
-      lastMode.current = "demo";
-      setOriginalResult(undefined);
-      setManuallyModified(false);
-      setEditing(false);
-      reset();
-    } catch {
-      setEmployeeLoadError("Não foi possível carregar os dados de demonstração.");
-    } finally {
-      setDemoLoading(false);
-    }
+  }, [mode, guestEmployees]);
+  const openSelection = () => { if (!loading) setSelectionOpen(true); };
+  const confirmSelection = (ids: string[]) => {
+    lastSelection.current = ids;
+    lastMode.current = mode;
+    lastSelectedEmployees.current = employees.filter((employee) => ids.includes(employee.id));
+    setManuallyModified(false); setSelectionOpen(false);
+    const selection = mode === "guest" ? lastSelectedEmployees.current : ids;
+    void optimize(selection, mode).then(result => {if (result) setOriginalResult(result);});
   };
-  const exitDemoMode = async () => {
-    if (loading || demoLoading) return;
-    pageMode.current = "normal";
-    setDemoLoading(true);
-    setEmployeeLoadError("");
-    try {
-      const realEmployees = await api.listEmployees();
-      setEmployees(realEmployees);
-      setDemoMode(false);
-      lastSelection.current = [];
-      lastMode.current = "normal";
-      setOriginalResult(undefined);
-      setManuallyModified(false);
-      setEditing(false);
-      reset();
-    } catch {
-      setEmployeeLoadError("Não foi possível retornar aos funcionários da organização.");
-    } finally {
-      setDemoLoading(false);
-    }
-  };
-  const confirmSelection = (ids: string[]) => { lastSelection.current = ids; lastMode.current = demoMode ? "demo" : "normal"; setManuallyModified(false); setSelectionOpen(false); void optimize(ids, lastMode.current).then(result => {if (result) setOriginalResult(result);}); };
-  const saveEdits = async (groups: import("../types/api").ManualRouteInput[]) => { setEditLoading(true); try { const result = lastMode.current === "demo" ? await api.recalculateDemoRoutes(lastSelection.current, groups) : await api.recalculateRoutes(lastSelection.current, groups); applyResult(result); setManuallyModified(true); setEditing(false); } finally { setEditLoading(false); } };
+  const saveEdits = async (groups: import("../types/api").ManualRouteInput[]) => { setEditLoading(true); try { const result = mode === "guest" ? await api.recalculateGuestRoutes(lastSelectedEmployees.current, groups) : await api.recalculateRoutes(lastSelection.current, groups); applyResult(result); setManuallyModified(true); setEditing(false); } finally { setEditLoading(false); } };
   const exportResult = (kind: "uber" | "json" | "csv" | "text") => { if (!state.result) return; if (kind === "uber") { const previews = buildUberPreview(state.result, employees); setExportPreview(JSON.stringify(previews, null, 2)); } else { const content = kind === "json" ? internalJson(state.result, employees) : kind === "csv" ? operationalCsv(state.result, employees) : routeText(state.result); const blob = new Blob([content], {type: kind === "csv" ? "text/csv;charset=utf-8" : "text/plain;charset=utf-8"}); const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = `rotas.${kind === "json" ? "json" : kind === "csv" ? "csv" : "txt"}`; anchor.click(); URL.revokeObjectURL(url); } };
   return <>
     <div className="page-heading">
       <div><p className="eyebrow">Planejamento operacional</p><h1 className="page-title">Rotas de transporte</h1>
         <p className="page-description">Organize automaticamente o transporte dos funcionários após o expediente.</p></div>
       <div className="page-heading-actions">
-        {!demoMode && <button className="button button-quiet" onClick={() => void enterDemoMode()} disabled={loading || demoLoading}>
-          {demoLoading ? "Carregando demonstração..." : "Usar dados de demonstração"}
-        </button>}
-        <button className="button button-primary" onClick={openSelection} disabled={loading || demoLoading || employees.length === 0}><RouteIcon size={16} />
+        <button className="button button-primary" onClick={openSelection} disabled={loading || employees.length === 0}><RouteIcon size={16} />
           {loading ? "Calculando..." : state.result ? "Gerar novas rotas" : "Gerar rotas"}
         </button>
       </div>
     </div>
-    {demoMode && <section className="demo-banner" role="status">
-      <div><strong>Modo demonstração</strong><span>{employees.length} {employees.length === 1 ? "funcionário fictício disponível" : "funcionários fictícios disponíveis"}. Nenhum dado será salvo na organização.</span></div>
-      <button className="button button-quiet" onClick={() => void exitDemoMode()} disabled={loading || demoLoading}>Sair do modo demonstração</button>
+    {mode === "guest" && <section className="demo-banner" role="status">
+      <div><strong>Modo visitante</strong><span>{employees.length} {employees.length === 1 ? "funcionário disponível" : "funcionários disponíveis"}. Cadastros salvos somente neste navegador; dados da rota são enviados ao servidor durante o cálculo.</span></div>
     </section>}
     {employeeLoadError && state.status === "idle" && <p className="form-error" role="alert">{employeeLoadError}</p>}
-    {state.status === "idle" && <EmptyRoutes onOptimize={openSelection} employeeCount={demoMode ? employees.length : employeeCount} />}
+    {state.status === "idle" && <EmptyRoutes onOptimize={openSelection} employeeCount={mode === "guest" ? employees.length : employeeCount} />}
     {loading && <LoadingRoutes employeeCount={state.status === "loading" ? state.employeeCount : lastSelection.current.length} />}
     {state.status === "error" && <ErrorRoutes message={friendlyApiError(state.error instanceof ApiError ? state.error.code : undefined)}
-      onRetry={() => void optimize(lastSelection.current, lastMode.current)} />}
+      onRetry={() => void optimize(mode === "guest" ? lastSelectedEmployees.current : lastSelection.current, lastMode.current)} />}
     {state.result && <>
       {(loading || state.status === "error") && <p className="section-note result-context">O resultado anterior continua disponível abaixo.</p>}
       {editing ? <ManualRouteEditor result={state.result} employees={employees} loading={editLoading} onCancel={() => setEditing(false)} onRestore={() => {if (originalResult) {applyResult(originalResult); setManuallyModified(false); setEditing(false);}}} onSave={saveEdits} /> : <Results key={state.status === "success" ? "current" : "previous"} result={state.result} manuallyModified={manuallyModified} onEdit={() => setEditing(true)} onExport={exportResult} />}
     </>}
-    {selectionOpen && <EmployeeSelectionModal employees={employees} onClose={() => setSelectionOpen(false)} onConfirm={confirmSelection} />}
+    {selectionOpen && <EmployeeSelectionModal employees={employees} maxSelection={mode === "guest" ? 12 : undefined} onClose={() => setSelectionOpen(false)} onConfirm={confirmSelection} />}
     {exportPreview && <div className="modal-backdrop" role="dialog" aria-modal="true"><div className="modal-card"><div className="modal-header"><h2>Prévia Uber</h2><button className="icon-button" aria-label="Fechar prévia" onClick={() => setExportPreview(undefined)}>×</button></div><p className="section-note">Esta prévia não cria corridas nem envia dados à Uber.</p><pre className="export-preview">{exportPreview}</pre><div className="modal-actions"><button className="button button-primary" onClick={() => void navigator.clipboard?.writeText(exportPreview)}>Copiar JSON</button><button className="button button-quiet" onClick={() => setExportPreview(undefined)}>Fechar</button></div></div></div>}
   </>;
 }
+

@@ -28,18 +28,18 @@ Authorization: Bearer <google-id-token>
 
 Private endpoints are `/employees`, `/api/geocoding/preview`, `/api/routes/optimize` and `/api/routes/recalculate`. `/health` and the Google sign-in endpoint remain public. Every employee query is scoped to the organization resolved from the validated identity.
 
-## Demonstration mode
+## Guest mode
 
-The authenticated demonstration endpoints expose a fixed, read-only dataset of 30 fictitious employees. They are kept in server memory and are never written to PostgreSQL or returned by the normal `/employees` endpoint.
+The unauthenticated guest playground exposes a fixed, read-only dataset of 30 fictitious employees through `GET /api/guest/employees`. The browser copies that dataset into versioned localStorage and keeps guest CRUD changes there; no guest employee is written to PostgreSQL.
 
-`GET /api/demo/employees` returns the 30 available demo employees. The normal optimization contract is reused under the demo namespace:
+Guest optimization sends only the selected, validated employees to the isolated public routes:
 
 ```json
-POST /api/demo/routes/optimize
-{"employeeIds":["demo-01","demo-02"]}
+POST /api/guest/routes/optimize
+{"employees":[{"id":"demo-01","name":"Lucas Almeida","address":"Centro, Cabo","phone":"(81) 99000-0001","latitude":-8.29,"longitude":-35.03}]}
 ```
 
-Manual recalculation is likewise available at `POST /api/demo/routes/recalculate`. Both routes require the same authenticated session as normal operations, validate IDs against the demo dataset, and use the same optimization and routing services. Exiting demo mode is a frontend session action; it discards the current demo selection/result and reloads the organization's employees.
+`POST /api/guest/routes/recalculate` accepts the same employee payload plus manual groups. Guest executions allow at most 12 employees, use the same optimization/routing services, and are protected by an in-memory per-IP rate limit. Guest geocoding is available only at `POST /api/guest/geocoding/preview`, with its own rate limit and input size validation. No guest endpoint can access organization employees.
 
 ## Employee coordinates
 

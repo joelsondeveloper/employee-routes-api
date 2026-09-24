@@ -153,7 +153,7 @@ export function responseForResult(result: EmployeeRouteOptimizationResult, emplo
   };
 }
 
-function errorResponse(error: unknown): {status: number; body: HttpErrorResponse} {
+export function optimizationErrorResponse(error: unknown): {status: number; body: HttpErrorResponse} {
   if (error instanceof RoutingInputError) {
     return {status: 400, body: {error: {code: "INVALID_ROUTING_INPUT", message: "Os dados de roteamento são inválidos."}}};
   }
@@ -226,7 +226,7 @@ export function createOptimizationRouter(dependencies: OptimizationRouteDependen
       console.error("Optimization request failed:", error instanceof Error ? error.name : "unknown error");
       const mapped = error instanceof Error && error.message.startsWith("Unknown employee IDs:")
         ? {status: 400, body: {error: {code: "EMPLOYEE_NOT_FOUND", message: "Um ou mais funcionários selecionados não existem."}} satisfies HttpErrorResponse}
-        : errorResponse(error);
+      : optimizationErrorResponse(error);
       return response.status(mapped.status).json(mapped.body);
     }
   });
@@ -265,7 +265,7 @@ export function createOptimizationRouter(dependencies: OptimizationRouteDependen
       };
       return response.json(responseForResult(result, selected, origin));
     } catch (error) {
-      const mapped = errorResponse(error);
+      const mapped = optimizationErrorResponse(error);
       return response.status(mapped.status).json(mapped.body);
     }
   });
