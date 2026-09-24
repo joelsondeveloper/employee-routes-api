@@ -12,6 +12,7 @@ import {EmployeeSelectionModal} from "../components/EmployeeSelectionModal";
 import type {Employee} from "../types/api";
 import {ManualRouteEditor} from "../components/ManualRouteEditor";
 import {buildUberPreview, internalJson, operationalCsv, routeText} from "../lib/route-export";
+import {formatElapsed} from "../lib/formatters";
 
 function EmptyRoutes({onOptimize, employeeCount}: {onOptimize: () => void; employeeCount?: number}) {
   return <div className="empty-state"><div className="empty-inner">
@@ -23,10 +24,29 @@ function EmptyRoutes({onOptimize, employeeCount}: {onOptimize: () => void; emplo
   </div></div>;
 }
 
-function LoadingRoutes() {
-  return <div className="loading-panel" role="status"><div className="empty-inner">
-    <div className="spinner" aria-hidden="true" /><h2 className="loading-title">Calculando melhores rotas...</h2>
-    <p className="loading-copy">Estamos analisando proximidade, tempo de viagem e possíveis combinações entre os funcionários. Isso pode levar cerca de 1–2 minutos.</p>
+function LoadingRoutes({employeeCount}: {employeeCount: number}) {
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  useEffect(() => {
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const activities = ["Preparando funcionários", "Calculando trajetos", "Avaliando combinações", "Finalizando rotas"];
+  const activityIndex = Math.min(activities.length - 1, Math.floor(elapsedSeconds / 8));
+
+  return <div className="loading-panel" aria-busy="true"><div className="empty-inner">
+    <div className="spinner" aria-hidden="true" />
+    <h2 className="loading-title">Otimizando rotas...</h2>
+    <p className="loading-copy">Estamos analisando {employeeCount} {employeeCount === 1 ? "funcionário" : "funcionários"} e seus trajetos. Isso pode levar cerca de 1–2 minutos.</p>
+    <div className="loading-activity" role="status" aria-live="polite">
+      <span className="loading-activity-dot" aria-hidden="true" />
+      <span>{activities[activityIndex]}</span>
+    </div>
+    <p className="loading-elapsed">Tempo decorrido: <strong>{formatElapsed(elapsedSeconds)}</strong></p>
+    <p className="loading-honesty">As mensagens indicam a atividade da operação; o resultado aparece quando o backend concluir o cálculo.</p>
   </div></div>;
 }
 
@@ -127,7 +147,7 @@ export function RoutesPage({employeeCount}: {employeeCount?: number}) {
     </div>
     {employeeLoadError && state.status === "idle" && <p className="form-error" role="alert">{employeeLoadError}</p>}
     {state.status === "idle" && <EmptyRoutes onOptimize={openSelection} employeeCount={employeeCount} />}
-    {loading && <LoadingRoutes />}
+    {loading && <LoadingRoutes employeeCount={state.status === "loading" ? state.employeeCount : lastSelection.current.length} />}
     {state.status === "error" && <ErrorRoutes message={friendlyApiError(state.error instanceof ApiError ? state.error.code : undefined)}
       onRetry={() => void optimize(lastSelection.current)} />}
     {state.result && <>

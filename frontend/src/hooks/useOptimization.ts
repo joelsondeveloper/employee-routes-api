@@ -4,7 +4,7 @@ import type {OptimizationResponse} from "../types/api";
 
 export type OptimizationState =
   | {status: "idle"; result?: undefined; error?: undefined}
-  | {status: "loading"; result?: OptimizationResponse; error?: undefined}
+  | {status: "loading"; result?: OptimizationResponse; employeeCount: number; error?: undefined}
   | {status: "success"; result: OptimizationResponse; error?: undefined}
   | {status: "error"; result?: OptimizationResponse; error: ApiError | Error};
 
@@ -15,7 +15,7 @@ export function useOptimization() {
   const optimize = useCallback(async (employeeIds: string[]) => {
     if (running.current) return undefined;
     running.current = true;
-    setState((previous) => ({status: "loading", result: previous.result}));
+    setState((previous) => ({status: "loading", result: previous.result, employeeCount: employeeIds.length}));
     try {
       const result = await api.optimizeRoutes(employeeIds);
       setState({status: "success", result});

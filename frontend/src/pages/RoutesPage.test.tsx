@@ -1,4 +1,4 @@
-import {render, screen, waitFor} from "@testing-library/react";
+import {act, fireEvent, render, screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {RoutesPage} from "./RoutesPage";
@@ -89,7 +89,10 @@ describe("RoutesPage", () => {
     await user.click(screen.getAllByRole("button", {name: "Gerar rotas"})[0]!);
     await user.click(screen.getByRole("checkbox", {name: /Ana/}));
     await user.click(screen.getByRole("button", {name: "Gerar rotas para 1"}));
-    expect(screen.getByText("Calculando melhores rotas...")).toBeInTheDocument();
+    expect(screen.getByText("Otimizando rotas...")).toBeInTheDocument();
+    expect(screen.getByText(/Estamos analisando 1 funcionário/)).toBeInTheDocument();
+    expect(screen.getByText("Tempo decorrido:")).toBeInTheDocument();
+    expect(screen.getByText("0s")).toBeInTheDocument();
     expect(screen.getByRole("button", {name: "Calculando..."})).toBeDisabled();
 
     resolveRequest(resultFixture());
@@ -118,5 +121,26 @@ describe("RoutesPage", () => {
     await user.click(screen.getByRole("button", {name: "Tentar novamente"}));
     await waitFor(() => expect(screen.getByRole("heading", {name: "Grupos de transporte"})).toBeInTheDocument());
     expect(optimize).toHaveBeenCalledTimes(2);
+  });
+
+  it("updates elapsed time while the optimization is pending", async () => {
+    vi.useFakeTimers();
+    let resolveRequest!: (value: OptimizationResponse) => void;
+    vi.spyOn(api, "optimizeRoutes").mockReturnValue(new Promise((resolve) => { resolveRequest = resolve; }));
+    vi.spyOn(api, "listEmployees").mockResolvedValue([
+      {id: "ana", name: "Ana", address: "Rua Ana", phone: "1", latitude: -8.1, longitude: -34.9},
+    ]);
+    try {
+      render(<RoutesPage />);
+      await act(async () => { await Promise.resolve(); });
+      fireEvent.click(screen.getAllByRole("button", {name: "Gerar rotas"})[0]!);
+      fireEvent.click(screen.getByRole("checkbox", {name: /Ana/}));
+      fireEvent.click(screen.getByRole("button", {name: "Gerar rotas para 1"}));
+      act(() => { vi.advanceTimersByTime(5000); });
+      expect(screen.getByText("5s")).toBeInTheDocument();
+      await act(async () => { resolveRequest(resultFixture()); await Promise.resolve(); });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

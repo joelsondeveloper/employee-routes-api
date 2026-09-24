@@ -17,3 +17,11 @@ export function formatExtraDuration(seconds: number): string {
 export function formatPhone(phone: string): string {
   return phone.trim() || "Não informado";
 }
+
+export function formatElapsed(seconds: number): string {
+  const wholeSeconds = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(wholeSeconds / 60);
+  const remainingSeconds = wholeSeconds % 60;
+  if (minutes === 0) return `${remainingSeconds}s`;
+  return `${minutes}min ${String(remainingSeconds).padStart(2, "0")}s`;
+}
