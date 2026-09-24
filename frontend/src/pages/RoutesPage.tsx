@@ -34,7 +34,7 @@ function LoadingRoutes({employeeCount}: {employeeCount: number}) {
     return () => window.clearInterval(timer);
   }, []);
 
-  const activities = ["Preparando funcionários", "Calculando trajetos", "Avaliando combinações", "Finalizando rotas"];
+  const activities = ["Preparando funcionários", "Calculando trajetos", "Avaliando combinações", "Aguardando conclusão do cálculo"];
   const activityIndex = Math.min(activities.length - 1, Math.floor(elapsedSeconds / 8));
 
   return <div className="loading-panel" aria-busy="true"><div className="empty-inner">
