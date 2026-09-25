@@ -86,7 +86,7 @@ describe("RoutesPage", () => {
     await user.click(screen.getAllByRole("button", {name: "Gerar rotas"})[0]!);
     await user.click(screen.getByRole("checkbox", {name: /Lucas Almeida/}));
     await user.click(screen.getByRole("button", {name: "Gerar rotas para 1"}));
-    await waitFor(() => expect(optimizeGuest).toHaveBeenCalledWith([guestEmployee]));
+    await waitFor(() => expect(optimizeGuest).toHaveBeenCalledWith([guestEmployee], {optimizationProfile: "NORMAL"}));
   });
   it("shows honest loading feedback and renders accepted, rejected and issue states", async () => {
     let resolveRequest!: (value: OptimizationResponse) => void;

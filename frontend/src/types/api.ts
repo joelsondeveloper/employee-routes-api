@@ -92,6 +92,34 @@ export interface OptimizationResponse {
   groups: RouteGroup[];
   issues: OptimizationIssue[];
   summary: OptimizationSummary;
+  optimizationProfile?: OptimizationProfile;
+  appliedOptimizationConfig?: AppliedOptimizationConfig;
+}
+
+export type OptimizationProfile = "NORMAL" | "CONSERVATIVE" | "CUSTOM";
+
+/** Custom values use minutes at the HTTP boundary for human-friendly forms. */
+export interface OptimizationConfigInput {
+  minimumCompatibilityScore: number;
+  maxDirectionDifference: number;
+  maxProximityKm: number;
+  maxDistanceDifferenceKm: number;
+  maxAverageExtraDurationMinutes: number;
+  maxExtraDurationMinutes: number;
+}
+
+export interface OptimizationRequestConfig {
+  optimizationProfile: OptimizationProfile;
+  optimizationConfig?: OptimizationConfigInput;
+}
+
+export interface AppliedOptimizationConfig {
+  minimumCompatibilityScore: number;
+  maxDirectionDifference: number;
+  maxProximityKm: number;
+  maxDistanceDifferenceKm: number;
+  maxAverageExtraDurationSeconds: number;
+  maxExtraDurationSeconds: number;
 }
 
 export interface ManualRouteInput {

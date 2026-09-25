@@ -64,10 +64,23 @@ export interface OptimizationSummaryResponse {
   averageOccupancy: number;
 }
 
+export type OptimizationProfileResponse = "NORMAL" | "CONSERVATIVE" | "CUSTOM";
+
+export interface AppliedOptimizationConfigResponse {
+  minimumCompatibilityScore: number;
+  maxDirectionDifference: number;
+  maxProximityKm: number;
+  maxDistanceDifferenceKm: number;
+  maxAverageExtraDurationSeconds: number;
+  maxExtraDurationSeconds: number;
+}
+
 export interface OptimizeRoutesResponse {
   groups: RouteGroupResponse[];
   issues: OptimizationIssueResponse[];
   summary: OptimizationSummaryResponse;
+  optimizationProfile?: OptimizationProfileResponse;
+  appliedOptimizationConfig?: AppliedOptimizationConfigResponse;
 }
 
 export interface HttpErrorResponse {

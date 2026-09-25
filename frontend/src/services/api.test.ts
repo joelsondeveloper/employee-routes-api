@@ -17,6 +17,19 @@ describe("HTTP client", () => {
     expect(options.signal).toBeUndefined();
   });
 
+  it("sends a selected profile and custom values only when requested", async () => {
+    const fetch = vi.fn().mockResolvedValue(Response.json(optimizationFixture()));
+    vi.stubGlobal("fetch", fetch);
+    await api.optimizeRoutes(["employee-1"], {optimizationProfile: "CUSTOM", optimizationConfig: {
+      minimumCompatibilityScore: 50, maxDirectionDifference: 60, maxProximityKm: 8, maxDistanceDifferenceKm: 15,
+      maxAverageExtraDurationMinutes: 12, maxExtraDurationMinutes: 20,
+    }});
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({employeeIds: ["employee-1"], optimizationProfile: "CUSTOM", optimizationConfig: {
+      minimumCompatibilityScore: 50, maxDirectionDifference: 60, maxProximityKm: 8, maxDistanceDifferenceKm: 15,
+      maxAverageExtraDurationMinutes: 12, maxExtraDurationMinutes: 20,
+    }});
+  });
+
   it.each([
     [400, {message: "Address not found"}, "ADDRESS_NOT_FOUND"],
     [400, {error: "Address not found."}, "ADDRESS_NOT_FOUND"],

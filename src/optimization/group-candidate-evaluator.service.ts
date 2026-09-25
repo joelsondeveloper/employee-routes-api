@@ -22,12 +22,15 @@ import {
 import {
   calculateGroupCompatibility,
 } from "./group-compatibility.service.js";
+import type { OptimizationBehaviorConfig } from "./optimization-behavior.config.js";
+import { NORMAL_OPTIMIZATION_CONFIG } from "./optimization-behavior.config.js";
 
 export async function evaluateCandidateForGroup(
   origin: GroupingPoint,
   candidate: GroupingPoint,
   group: GroupingPoint[],
   routingProvider: RoutingProvider,
+  optimizationConfig: OptimizationBehaviorConfig = NORMAL_OPTIMIZATION_CONFIG,
 ): Promise<CandidateCompatibilityScore> {
   validateRoutingPoints([origin, ...group, candidate]);
   try {
@@ -71,6 +74,7 @@ export async function evaluateCandidateForGroup(
 
       bestRoadCandidate.evaluation
         .maxExtraDurationSeconds,
+      optimizationConfig,
     );
 
   return { ...calculateGroupCompatibility(
@@ -78,6 +82,7 @@ export async function evaluateCandidateForGroup(
     candidate,
     group,
     roadCompatibility.roadScore,
+    optimizationConfig,
   ), routeAvailable: true };
   } catch (error) {
     if (!(error instanceof RouteUnavailableError)) throw error;

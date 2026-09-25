@@ -11,6 +11,7 @@ import {LocationIQRoutingProvider} from "../routing/providers/locationiq-routing
 import type {RoutingPoint, RoutingProvider} from "../routing/routing.types.js";
 import type {GeocodingRouteDependencies} from "../geocoding/geocoding.routes.js";
 import {DEMO_EMPLOYEES} from "../demo/demo-employees.js";
+import {resolveOptimizationConfig} from "../optimization/optimization-behavior.config.js";
 
 const MAX_EMPLOYEES = 12;
 const MAX_STRING_LENGTH = 300;
@@ -115,9 +116,15 @@ export function createGuestRouter(dependencies: GuestRouteDependencies = {}): Ro
     const parsed = parseEmployees(request.body?.employees);
     if (parsed.error) return response.status(400).json({error: {code: "INVALID_GUEST_REQUEST", message: parsed.error}});
     const selected = parsed.employees!;
+    let resolvedConfig;
+    try { resolvedConfig = resolveOptimizationConfig(request.body?.optimizationProfile, request.body?.optimizationConfig); }
+    catch (error) {
+      const mapped = optimizationErrorResponse(error);
+      return response.status(mapped.status).json(mapped.body);
+    }
     try {
       const origin: RoutingPoint = {id: "company", ...company.coordinates};
-      const result = await optimize(origin, selected, makeProvider());
+      const result = await optimize(origin, selected, makeProvider(), resolvedConfig.config, resolvedConfig.profile);
       return response.json(responseForResult(result, selected, origin));
     } catch (error) {
       const mapped = optimizationErrorResponse(error);
@@ -131,11 +138,17 @@ export function createGuestRouter(dependencies: GuestRouteDependencies = {}): Ro
     const selected = parsed.employees!;
     const parsedGroups = validateGroups(request.body?.groups, selected);
     if (parsedGroups.error) return response.status(400).json({error: {code: "INVALID_GUEST_REQUEST", message: parsedGroups.error}});
+    let resolvedConfig;
+    try { resolvedConfig = resolveOptimizationConfig(request.body?.optimizationProfile, request.body?.optimizationConfig); }
+    catch (error) {
+      const mapped = optimizationErrorResponse(error);
+      return response.status(mapped.status).json(mapped.body);
+    }
     try {
       const origin: RoutingPoint = {id: "company", ...company.coordinates};
       const result = await recalculateManualGroups(origin, selected, parsedGroups.groups!, makeProvider());
       const summary = {totalEmployees: selected.length, totalGroups: result.groups.length, acceptableGroups: result.groups.filter((group) => group.acceptable).length, rejectedGroups: result.groups.filter((group) => !group.acceptable).length, unavailableGroups: result.issues.filter((issue) => issue.type === "UNAVAILABLE_GROUP").length, unroutableEmployees: result.issues.filter((issue) => issue.type === "UNROUTABLE_EMPLOYEE").length, averageOccupancy: result.groups.length ? result.groups.reduce((sum, group) => sum + group.employees.length, 0) / result.groups.length : 0};
-      return response.json(responseForResult({...result, summary}, selected, origin));
+      return response.json(responseForResult({...result, summary, optimizationProfile: resolvedConfig.profile, appliedOptimizationConfig: resolvedConfig.config}, selected, origin));
     } catch (error) {
       const mapped = optimizationErrorResponse(error);
       return response.status(mapped.status).json(mapped.body);

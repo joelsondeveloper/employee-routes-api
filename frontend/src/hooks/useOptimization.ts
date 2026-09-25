@@ -1,6 +1,6 @@
 import {useCallback, useRef, useState} from "react";
 import {api, ApiError} from "../services/api";
-import type {Employee, OptimizationResponse} from "../types/api";
+import type {Employee, OptimizationResponse, OptimizationRequestConfig} from "../types/api";
 
 export type OptimizationState =
   | {status: "idle"; result?: undefined; error?: undefined}
@@ -14,14 +14,14 @@ export function useOptimization() {
   const [state, setState] = useState<OptimizationState>({status: "idle"});
   const running = useRef(false);
 
-  const optimize = useCallback(async (selection: string[] | Employee[], mode: OptimizationMode = "normal") => {
+  const optimize = useCallback(async (selection: string[] | Employee[], mode: OptimizationMode = "normal", config?: OptimizationRequestConfig) => {
     if (running.current) return undefined;
     running.current = true;
     setState((previous) => ({status: "loading", result: previous.result, employeeCount: selection.length}));
     try {
       const result = mode === "guest"
-        ? await api.optimizeGuestRoutes(selection as Employee[])
-        : await api.optimizeRoutes(selection as string[]);
+        ? config ? await api.optimizeGuestRoutes(selection as Employee[], config) : await api.optimizeGuestRoutes(selection as Employee[])
+        : config ? await api.optimizeRoutes(selection as string[], config) : await api.optimizeRoutes(selection as string[]);
       setState({status: "success", result});
       return result;
     } catch (error) {

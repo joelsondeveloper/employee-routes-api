@@ -8,11 +8,15 @@ import { analyzeEmployeeGeography } from "../employees/employee-geography.servic
 import { createCandidateGroups } from "./grouping.service.js";
 import { evaluateRouteCandidates } from "../routing/route-evaluator.service.js";
 import { ScoredRouteCandidates, findBestScoredRoute, findBestScoredAttempt } from "../routing/route-score.service.js";
+import type { OptimizationBehaviorConfig, OptimizationProfile } from "./optimization-behavior.config.js";
+import { NORMAL_OPTIMIZATION_CONFIG } from "./optimization-behavior.config.js";
 
 export async function optimizeEmployeeRoutes(
   origin: RoutingPoint,
   employees: Employee[],
   routingProvider: RoutingProvider,
+  optimizationConfig: OptimizationBehaviorConfig = NORMAL_OPTIMIZATION_CONFIG,
+  optimizationProfile: OptimizationProfile = "NORMAL",
 ): Promise<EmployeeRouteOptimizationResult> {
   validateRoutingPoints([origin, ...employees]);
   const executionProvider = new ExecutionRoutingProvider(routingProvider);
@@ -33,7 +37,7 @@ export async function optimizeEmployeeRoutes(
     }
   }
   const geography = routable.map(employee => analyzeEmployeeGeography(employee, origin));
-  const candidates = await createCandidateGroups(origin, geography, executionProvider);
+  const candidates = await createCandidateGroups(origin, geography, executionProvider, optimizationConfig);
   const groups: OptimizedEmployeeGroup[] = [];
 
   for (const [index, group] of candidates.entries()) {
@@ -80,5 +84,7 @@ export async function optimizeEmployeeRoutes(
       unroutableEmployees: employees.length - routable.length,
       averageOccupancy: candidates.length === 0 ? 0 : routable.length / candidates.length,
     },
+    optimizationProfile,
+    appliedOptimizationConfig: optimizationConfig,
   };
 }

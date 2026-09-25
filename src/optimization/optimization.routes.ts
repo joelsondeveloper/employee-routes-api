@@ -25,6 +25,7 @@ import type {
   RouteViolationResponse,
 } from "./optimization.http.types.js";
 import { recalculateManualGroups, type ManualRouteGroupInput } from "./manual-route.service.js";
+import { OptimizationConfigurationError, optimizationConfigKey, resolveOptimizationConfig } from "./optimization-behavior.config.js";
 
 export interface OptimizationRouteDependencies {
   employeeRepository?: EmployeeRepository;
@@ -146,16 +147,29 @@ export function responseForResult(result: EmployeeRouteOptimizationResult, emplo
     }
     return response;
   });
-  return {
+  const response: OptimizeRoutesResponse = {
     groups: result.groups.map((group) => groupResponse(group, origin)),
     issues,
     summary: result.summary,
   };
+  if (result.optimizationProfile) response.optimizationProfile = result.optimizationProfile;
+  if (result.appliedOptimizationConfig) response.appliedOptimizationConfig = {
+      minimumCompatibilityScore: result.appliedOptimizationConfig.minimumCompatibilityScore,
+      maxDirectionDifference: result.appliedOptimizationConfig.maxDirectionDifference,
+      maxProximityKm: result.appliedOptimizationConfig.maxProximityKm,
+      maxDistanceDifferenceKm: result.appliedOptimizationConfig.maxDistanceDifferenceKm,
+      maxAverageExtraDurationSeconds: result.appliedOptimizationConfig.roadCompatibility.maxAverageExtraDurationSeconds,
+      maxExtraDurationSeconds: result.appliedOptimizationConfig.roadCompatibility.maxExtraDurationSeconds,
+    };
+  return response;
 }
 
 export function optimizationErrorResponse(error: unknown): {status: number; body: HttpErrorResponse} {
   if (error instanceof RoutingInputError) {
     return {status: 400, body: {error: {code: "INVALID_ROUTING_INPUT", message: "Os dados de roteamento são inválidos."}}};
+  }
+  if (error instanceof OptimizationConfigurationError) {
+    return {status: 400, body: {error: {code: "INVALID_OPTIMIZATION_CONFIG", message: "A configuração de otimização é inválida."}}};
   }
   if (error instanceof RoutingProviderError) {
     if (error.kind === "CONFIGURATION") {
@@ -186,7 +200,7 @@ export function createOptimizationRouter(dependencies: OptimizationRouteDependen
     if (request.body === null || typeof request.body !== "object" || Array.isArray(request.body)) {
       return response.status(400).json({error: {code: "INVALID_REQUEST", message: "O corpo da requisição deve ser um objeto JSON."}} satisfies HttpErrorResponse);
     }
-    const body = request.body as {employeeIds?: unknown};
+    const body = request.body as {employeeIds?: unknown; optimizationProfile?: unknown; optimizationConfig?: unknown};
     if (!("employeeIds" in body)) {
       return response.status(400).json({error: {code: "INVALID_REQUEST", message: "Informe employeeIds para definir quem participará da otimização."}} satisfies HttpErrorResponse);
     }
@@ -201,8 +215,16 @@ export function createOptimizationRouter(dependencies: OptimizationRouteDependen
       return response.status(400).json({error: {code: "INVALID_REQUEST", message: "employeeIds não pode conter IDs duplicados."}} satisfies HttpErrorResponse);
     }
 
+    let resolvedConfig;
+    try {
+      resolvedConfig = resolveOptimizationConfig(body.optimizationProfile, body.optimizationConfig);
+    } catch (error) {
+      const mapped = optimizationErrorResponse(error);
+      return response.status(mapped.status).json(mapped.body);
+    }
+
     const organizationId = request.auth?.organizationId ?? "legacy";
-    const key = `${organizationId}\u001e${[...employeeIds].sort().join("\u001f")}`;
+    const key = `${organizationId}\u001e${[...employeeIds].sort().join("\u001f")}\u001e${optimizationConfigKey(resolvedConfig)}`;
     let execution = inFlight.get(key);
 
     if (!execution) {
@@ -215,7 +237,7 @@ export function createOptimizationRouter(dependencies: OptimizationRouteDependen
         }
         const selectedEmployees = employeeIds.map((id) => byId.get(id)!);
         const origin: RoutingPoint = {id: "company", ...company.coordinates};
-        return runOptimization(origin, selectedEmployees, makeProvider()).then((result) => responseForResult(result, selectedEmployees, origin));
+        return runOptimization(origin, selectedEmployees, makeProvider(), resolvedConfig.config, resolvedConfig.profile).then((result) => responseForResult(result, selectedEmployees, origin));
       }).finally(() => { inFlight.delete(key); });
       inFlight.set(key, execution);
     }
@@ -232,7 +254,7 @@ export function createOptimizationRouter(dependencies: OptimizationRouteDependen
   });
 
   router.post("/recalculate", async (request: Request, response: Response) => {
-    const body = request.body as {employeeIds?: unknown; groups?: unknown} | null;
+    const body = request.body as {employeeIds?: unknown; groups?: unknown; optimizationProfile?: unknown; optimizationConfig?: unknown} | null;
     if (!body || !Array.isArray(body.employeeIds) || !Array.isArray(body.groups) ||
         body.employeeIds.some(id => typeof id !== "string" || !id.trim())) {
       return response.status(400).json({error: {code: "INVALID_REQUEST", message: "Informe employeeIds e groups válidos."}} satisfies HttpErrorResponse);
@@ -248,6 +270,13 @@ export function createOptimizationRouter(dependencies: OptimizationRouteDependen
     if (inputs.some(group => !group || typeof group.groupNumber !== "number" || !Array.isArray(group.employeeIds) || group.employeeIds.length > 4 || group.employeeIds.some(id => typeof id !== "string" || !employeeIds.includes(id)))) {
       return response.status(400).json({error: {code: "INVALID_REQUEST", message: "Os grupos manuais excedem a capacidade ou contêm funcionários inválidos."}} satisfies HttpErrorResponse);
     }
+    let resolvedConfig;
+    try {
+      resolvedConfig = resolveOptimizationConfig(body.optimizationProfile, body.optimizationConfig);
+    } catch (error) {
+      const mapped = optimizationErrorResponse(error);
+      return response.status(mapped.status).json(mapped.body);
+    }
     const used = inputs.flatMap(group => group.employeeIds);
     if (new Set(used).size !== used.length || used.some(id => !employeeIds.includes(id))) {
       return response.status(400).json({error: {code: "INVALID_REQUEST", message: "Cada funcionário deve aparecer no máximo uma vez nos grupos."}} satisfies HttpErrorResponse);
@@ -262,6 +291,8 @@ export function createOptimizationRouter(dependencies: OptimizationRouteDependen
         summary: {totalEmployees: selected.length, totalGroups: recalculated.groups.length, acceptableGroups: recalculated.groups.filter(group => group.acceptable).length,
           rejectedGroups: recalculated.groups.filter(group => !group.acceptable).length, unavailableGroups: recalculated.issues.filter(issue => issue.type === "UNAVAILABLE_GROUP").length,
           unroutableEmployees: 0, averageOccupancy: recalculated.groups.length ? selected.length / recalculated.groups.length : 0},
+        optimizationProfile: resolvedConfig.profile,
+        appliedOptimizationConfig: resolvedConfig.config,
       };
       return response.json(responseForResult(result, selected, origin));
     } catch (error) {

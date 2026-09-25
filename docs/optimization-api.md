@@ -32,11 +32,11 @@ Private endpoints are `/employees`, `/api/geocoding/preview`, `/api/routes/optim
 
 The unauthenticated guest playground exposes a fixed, read-only dataset of 30 fictitious employees through `GET /api/guest/employees`. The browser copies that dataset into versioned localStorage and keeps guest CRUD changes there; no guest employee is written to PostgreSQL.
 
-Guest optimization sends only the selected, validated employees to the isolated public routes:
+Guest optimization sends only the selected, validated employees to the isolated public routes. It accepts the same `optimizationProfile` and `optimizationConfig` fields as the authenticated route (and the same server-side ranges); the 12-employee guest cap is unchanged:
 
 ```json
 POST /api/guest/routes/optimize
-{"employees":[{"id":"demo-01","name":"Lucas Almeida","address":"Centro, Cabo","phone":"(81) 99000-0001","latitude":-8.29,"longitude":-35.03}]}
+{"employees":[{"id":"demo-01","name":"Lucas Almeida","address":"Centro, Cabo","phone":"(81) 99000-0001","latitude":-8.29,"longitude":-35.03}],"optimizationProfile":"NORMAL"}
 ```
 
 `POST /api/guest/routes/recalculate` accepts the same employee payload plus manual groups. Guest executions allow at most 12 employees, use the same optimization/routing services, and are protected by an in-memory per-IP rate limit. Guest geocoding is available only at `POST /api/guest/geocoding/preview`, with its own rate limit and input size validation. No guest endpoint can access organization employees.
@@ -74,7 +74,34 @@ Request body:
 {"employeeIds":["employee-1","employee-2"]}
 ```
 
-`employeeIds` is required. It must be a non-empty array of unique employee IDs. Unknown IDs and duplicate IDs return `400`. The server loads only those employees from PostgreSQL belonging to the authenticated organization, uses the configured company origin, creates a routing provider and invokes `optimizeEmployeeRoutes` once. Requests with the same organization and normalized selection may share one in-flight execution; different selections never share results. The request may take more than a minute.
+`employeeIds` is required. It must be a non-empty array of unique employee IDs. Unknown IDs and duplicate IDs return `400`. The server loads only those employees from PostgreSQL belonging to the authenticated organization, uses the configured company origin, creates a routing provider and invokes `optimizeEmployeeRoutes` once. Requests with the same organization, normalized selection and optimization profile/config may share one in-flight execution; different configurations never share results. The request may take more than a minute.
+
+Each execution can select one of the following profiles. Omitting `optimizationProfile` means `NORMAL` and preserves the original V1 behavior:
+
+```json
+{"employeeIds":["employee-1"],"optimizationProfile":"NORMAL"}
+```
+
+`CONSERVATIVE` is an experimental server-defined preset. `CUSTOM` accepts the following minute/km/degree values and is validated on the server:
+
+```json
+{
+  "employeeIds":["employee-1","employee-2"],
+  "optimizationProfile":"CUSTOM",
+  "optimizationConfig": {
+    "minimumCompatibilityScore": 50,
+    "maxDirectionDifference": 60,
+    "maxProximityKm": 8,
+    "maxDistanceDifferenceKm": 15,
+    "maxAverageExtraDurationMinutes": 12,
+    "maxExtraDurationMinutes": 20
+  }
+}
+```
+
+The response includes `optimizationProfile` and `appliedOptimizationConfig` (road limits are returned in seconds) so clients can display the exact server-resolved configuration. Weights, maximum capacity and the final 15-minute hard constraint remain internal and unchanged.
+
+Custom ranges are: score `0–100`, direction `10–180°`, proximity `1–30 km`, distance difference `1–50 km`, average road detour `5–60 min`, and maximum road detour `5–90 min`. The maximum road detour cannot be below the average limit. Preset requests must not include custom values.
 
 Successful response (`200`):
 
@@ -111,6 +138,15 @@ Successful response (`200`):
     "unavailableGroups": 0,
     "unroutableEmployees": 0,
     "averageOccupancy": 1
+  },
+  "optimizationProfile": "NORMAL",
+  "appliedOptimizationConfig": {
+    "minimumCompatibilityScore": 35,
+    "maxDirectionDifference": 90,
+    "maxProximityKm": 10,
+    "maxDistanceDifferenceKm": 20,
+    "maxAverageExtraDurationSeconds": 1200,
+    "maxExtraDurationSeconds": 1800
   }
 }
 ```
@@ -169,5 +205,7 @@ This endpoint recalculates only the groups supplied by the operator. It does not
 ```
 
 `stopOrder` is optional. When supplied, that order is calculated exactly as requested; when omitted, the existing route scoring policy chooses the best order for that group. Groups cannot contain more than four passengers. This endpoint returns the same group/issue/summary DTO as optimization and never requests a real Uber trip.
+
+When a profile/configuration is included on manual recalculation, it is preserved in the response metadata for traceability. Manual recalculation intentionally evaluates the supplied groups and order; it does not run the initial grouping decision again.
 
 The frontend export menu produces internal JSON, operational CSV, plain text, and a preview-only Uber Guest Rides payload. The Uber preview is not sent to Uber and requires valid coordinates and Brazilian phone numbers convertible to E.164 (`+55...`).

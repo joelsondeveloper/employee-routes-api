@@ -12,6 +12,8 @@ import {
   calculateDistance,
   calculateAngularDifference,
 } from "../geography/geography.utils.js";
+import type { OptimizationBehaviorConfig } from "./optimization-behavior.config.js";
+import { NORMAL_OPTIMIZATION_CONFIG } from "./optimization-behavior.config.js";
 
 function normalizeDifference(
   value: number,
@@ -28,6 +30,7 @@ function calculateDirectionScore(
   origin: GroupingPoint,
   candidate: GroupingPoint,
   group: GroupingPoint[],
+  config: OptimizationBehaviorConfig,
 ): number {
   const candidateBearing = calculateBearing(
     origin,
@@ -54,13 +57,14 @@ function calculateDirectionScore(
 
   return normalizeDifference(
     averageDifference,
-    GROUP_COMPATIBILITY_CONFIG.maxDirectionDifference,
+    config.maxDirectionDifference,
   );
 }
 
 function calculateProximityScore(
   candidate: GroupingPoint,
   group: GroupingPoint[],
+  config: OptimizationBehaviorConfig,
 ): number {
   const distances = group.map((member) =>
     calculateDistance(
@@ -77,7 +81,7 @@ function calculateProximityScore(
 
   return normalizeDifference(
     averageDistance,
-    GROUP_COMPATIBILITY_CONFIG.maxProximityKm,
+    config.maxProximityKm,
   );
 }
 
@@ -85,6 +89,7 @@ function calculateDistanceScore(
   origin: GroupingPoint,
   candidate: GroupingPoint,
   group: GroupingPoint[],
+  config: OptimizationBehaviorConfig,
 ): number {
   const candidateDistance = calculateDistance(
     origin,
@@ -110,7 +115,7 @@ function calculateDistanceScore(
 
   return normalizeDifference(
     difference,
-    GROUP_COMPATIBILITY_CONFIG.maxDistanceDifferenceKm,
+    config.maxDistanceDifferenceKm,
   );
 }
 
@@ -119,6 +124,7 @@ export function calculateGroupCompatibility(
   candidate: GroupingPoint,
   group: GroupingPoint[],
   roadScore: number,
+  config: OptimizationBehaviorConfig = NORMAL_OPTIMIZATION_CONFIG,
 ): GroupCompatibilityScore {
   if (group.length === 0) {
     return {
@@ -135,12 +141,14 @@ export function calculateGroupCompatibility(
       origin,
       candidate,
       group,
+      config,
     );
 
   const proximityScore =
     calculateProximityScore(
       candidate,
       group,
+      config,
     );
 
   const distanceScore =
@@ -148,6 +156,7 @@ export function calculateGroupCompatibility(
       origin,
       candidate,
       group,
+      config,
     );
 
   const finalScore =

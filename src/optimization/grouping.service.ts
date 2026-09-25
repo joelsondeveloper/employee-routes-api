@@ -22,6 +22,8 @@ import {
 import {
   evaluateCandidateForGroup,
 } from "./group-candidate-evaluator.service.js";
+import type { OptimizationBehaviorConfig } from "./optimization-behavior.config.js";
+import { NORMAL_OPTIMIZATION_CONFIG } from "./optimization-behavior.config.js";
 
 
 interface GroupEvaluation {
@@ -64,6 +66,7 @@ async function evaluateEmployeeAgainstGroup(
   employee: EmployeeGeography,
   group: CandidateGroup,
   routingProvider: RoutingProvider,
+  optimizationConfig: OptimizationBehaviorConfig,
 ): Promise<GroupEvaluation> {
   const candidate =
     toGroupingPoint(employee);
@@ -77,6 +80,7 @@ async function evaluateEmployeeAgainstGroup(
       candidate,
       groupPoints,
       routingProvider,
+      optimizationConfig,
     );
 
   return {
@@ -120,6 +124,7 @@ export async function createCandidateGroups(
   origin: GroupingPoint,
   employees: EmployeeGeography[],
   routingProvider: RoutingProvider,
+  optimizationConfig: OptimizationBehaviorConfig = NORMAL_OPTIMIZATION_CONFIG,
 ): Promise<CandidateGroup[]> {
   const sortedEmployees =
     sortByDistance(employees);
@@ -187,6 +192,7 @@ export async function createCandidateGroups(
           employee,
           group,
           routingProvider,
+          optimizationConfig,
         );
 
       if (!evaluation.compatibility.routeAvailable) {
@@ -224,7 +230,7 @@ export async function createCandidateGroups(
      */
     if (
       bestEvaluation.compatibility.finalScore <
-      GROUPING_CONFIG.minimumCompatibilityScore
+      optimizationConfig.minimumCompatibilityScore
     ) {
       groups.push({
         employees: [employee],

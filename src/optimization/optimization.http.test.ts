@@ -221,3 +221,48 @@ test("concurrent different selections never share an execution", async () => {
     assert.deepEqual(received.sort(), [[e1.id], [e2.id]].sort());
   });
 });
+
+test("resolves presets and returns the applied configuration", async () => {
+  let received: {minimumCompatibilityScore?: number}[] = [];
+  await withServer({
+    employeeStore: store([e1]),
+    optimize: async (_origin, _employees, _provider, config) => {
+      received.push(config ? {minimumCompatibilityScore: config.minimumCompatibilityScore} : {});
+      return {...result, groups: [], issues: [], summary: {...result.summary, totalEmployees: 1, totalGroups: 0, acceptableGroups: 0, rejectedGroups: 0, unroutableEmployees: 0, averageOccupancy: 0}, optimizationProfile: "CONSERVATIVE", ...(config ? {appliedOptimizationConfig: config} : {})};
+    },
+  }, async (baseUrl) => {
+    const response = await post(baseUrl, {employeeIds: [e1.id], optimizationProfile: "CONSERVATIVE"});
+    assert.equal(response.status, 200);
+    const body = await response.json() as {optimizationProfile: string; appliedOptimizationConfig: {minimumCompatibilityScore: number}};
+    assert.equal(body.optimizationProfile, "CONSERVATIVE");
+    assert.equal(body.appliedOptimizationConfig.minimumCompatibilityScore, 45);
+    assert.deepEqual(received, [{minimumCompatibilityScore: 45}]);
+  });
+});
+
+test("rejects malformed custom optimization configuration", async () => {
+  await withServer({employeeStore: store([e1])}, async (baseUrl) => {
+    const response = await post(baseUrl, {employeeIds: [e1.id], optimizationProfile: "CUSTOM", optimizationConfig: {minimumCompatibilityScore: 35, maxDirectionDifference: 90, maxProximityKm: 10, maxDistanceDifferenceKm: 20, maxAverageExtraDurationMinutes: 30, maxExtraDurationMinutes: 20}});
+    assert.equal(response.status, 400);
+    assert.equal((await response.json() as {error: {code: string}}).error.code, "INVALID_OPTIMIZATION_CONFIG");
+  });
+});
+
+test("same selection with different profiles does not share in-flight result", async () => {
+  let calls = 0;
+  const profiles: unknown[] = [];
+  await withServer({employeeStore: store([e1]), optimize: async (_origin, _employees, _provider, _config, profile) => {
+    calls++;
+    profiles.push(profile);
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    return {...result, groups: [], issues: [], summary: {...result.summary, totalEmployees: 1, totalGroups: 0, acceptableGroups: 0, rejectedGroups: 0, unroutableEmployees: 0, averageOccupancy: 0}};
+  }}, async (baseUrl) => {
+    const responses = await Promise.all([
+      post(baseUrl, {employeeIds: [e1.id], optimizationProfile: "NORMAL"}),
+      post(baseUrl, {employeeIds: [e1.id], optimizationProfile: "CONSERVATIVE"}),
+    ]);
+    assert.deepEqual(responses.map((response) => response.status), [200, 200]);
+    assert.equal(calls, 2);
+    assert.deepEqual(profiles.sort(), ["CONSERVATIVE", "NORMAL"]);
+  });
+});

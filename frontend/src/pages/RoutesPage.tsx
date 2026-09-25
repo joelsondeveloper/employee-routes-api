@@ -13,6 +13,8 @@ import type {Employee} from "../types/api";
 import {ManualRouteEditor} from "../components/ManualRouteEditor";
 import {buildUberPreview, internalJson, operationalCsv, routeText} from "../lib/route-export";
 import {formatElapsed} from "../lib/formatters";
+import {OptimizationSettings, defaultOptimizationRequest, optimizationConfigError} from "../components/OptimizationSettings";
+import type {OptimizationRequestConfig} from "../types/api";
 
 function EmptyRoutes({onOptimize, employeeCount}: {onOptimize: () => void; employeeCount?: number}) {
   return <div className="empty-state"><div className="empty-inner">
@@ -82,6 +84,7 @@ function Results({result, manuallyModified, onEdit, onExport}: {result: Optimiza
   const anomalous = result.groups.filter(isAnomalousGroup);
   return <>
     {manuallyModified && <p className="section-note result-context">Modificada manualmente · métricas recalculadas</p>}
+    {result.optimizationProfile && <div className="result-context"><p className="section-note">Perfil aplicado: {result.optimizationProfile === "CONSERVATIVE" ? "Conservador (experimental)" : result.optimizationProfile === "CUSTOM" ? "Personalizado" : "Normal"}</p>{result.appliedOptimizationConfig && <details className="optimization-applied"><summary>Ver configuração aplicada</summary><span>Score mínimo: {result.appliedOptimizationConfig.minimumCompatibilityScore}</span><span>Direção: {result.appliedOptimizationConfig.maxDirectionDifference}° · proximidade: {result.appliedOptimizationConfig.maxProximityKm} km · diferença de distância: {result.appliedOptimizationConfig.maxDistanceDifferenceKm} km</span><span>Desvio rodoviário: {Math.round(result.appliedOptimizationConfig.maxAverageExtraDurationSeconds / 60)} min médio · {Math.round(result.appliedOptimizationConfig.maxExtraDurationSeconds / 60)} min máximo</span></details>}</div>}
     <SummaryCards summary={result.summary} issueCount={result.issues.length} />
     <p className="section-note result-context">Resultado desta sessão. Os dados podem ser revistos em Funcionários; gere novamente após alterações.</p>
     <div className="results-layout">
@@ -128,10 +131,13 @@ export function RoutesPage({employeeCount, mode = "normal", employees: guestEmpl
   const [originalResult, setOriginalResult] = useState<OptimizationResponse>();
   const [exportPreview, setExportPreview] = useState<string>();
   const [manuallyModified, setManuallyModified] = useState(false);
+  const [optimizationSettings, setOptimizationSettings] = useState<OptimizationRequestConfig>(defaultOptimizationRequest);
   const lastSelection = useRef<string[]>([]);
   const lastMode = useRef<OptimizationMode>(mode);
   const lastSelectedEmployees = useRef<Employee[]>([]);
+  const lastOptimizationSettings = useRef<OptimizationRequestConfig>(defaultOptimizationRequest());
   const loading = state.status === "loading";
+  const settingsError = optimizationConfigError(optimizationSettings);
   useEffect(() => {
     if (mode === "guest") { setEmployees(guestEmployees ?? []); return; }
     let active = true;
@@ -146,10 +152,11 @@ export function RoutesPage({employeeCount, mode = "normal", employees: guestEmpl
     lastMode.current = mode;
     lastSelectedEmployees.current = employees.filter((employee) => ids.includes(employee.id));
     setManuallyModified(false); setSelectionOpen(false);
+    lastOptimizationSettings.current = optimizationSettings;
     const selection = mode === "guest" ? lastSelectedEmployees.current : ids;
-    void optimize(selection, mode).then(result => {if (result) setOriginalResult(result);});
+    void optimize(selection, mode, optimizationSettings).then(result => {if (result) setOriginalResult(result);});
   };
-  const saveEdits = async (groups: import("../types/api").ManualRouteInput[]) => { setEditLoading(true); try { const result = mode === "guest" ? await api.recalculateGuestRoutes(lastSelectedEmployees.current, groups) : await api.recalculateRoutes(lastSelection.current, groups); applyResult(result); setManuallyModified(true); setEditing(false); } finally { setEditLoading(false); } };
+  const saveEdits = async (groups: import("../types/api").ManualRouteInput[]) => { setEditLoading(true); try { const result = mode === "guest" ? await api.recalculateGuestRoutes(lastSelectedEmployees.current, groups, lastOptimizationSettings.current) : await api.recalculateRoutes(lastSelection.current, groups, lastOptimizationSettings.current); applyResult(result); setManuallyModified(true); setEditing(false); } finally { setEditLoading(false); } };
   const exportResult = (kind: "uber" | "json" | "csv" | "text") => { if (!state.result) return; if (kind === "uber") { const previews = buildUberPreview(state.result, employees); setExportPreview(JSON.stringify(previews, null, 2)); } else { const content = kind === "json" ? internalJson(state.result, employees) : kind === "csv" ? operationalCsv(state.result, employees) : routeText(state.result); const blob = new Blob([content], {type: kind === "csv" ? "text/csv;charset=utf-8" : "text/plain;charset=utf-8"}); const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = `rotas.${kind === "json" ? "json" : kind === "csv" ? "csv" : "txt"}`; anchor.click(); URL.revokeObjectURL(url); } };
   return <>
     <div className="page-heading">
@@ -161,6 +168,7 @@ export function RoutesPage({employeeCount, mode = "normal", employees: guestEmpl
         </button>
       </div>
     </div>
+    <OptimizationSettings value={optimizationSettings} onChange={setOptimizationSettings} disabled={loading} />
     {mode === "guest" && <section className="demo-banner" role="status">
       <div><strong>Modo visitante</strong><span>{employees.length} {employees.length === 1 ? "funcionário disponível" : "funcionários disponíveis"}. Cadastros salvos somente neste navegador; dados da rota são enviados ao servidor durante o cálculo.</span></div>
     </section>}
@@ -168,12 +176,12 @@ export function RoutesPage({employeeCount, mode = "normal", employees: guestEmpl
     {state.status === "idle" && <EmptyRoutes onOptimize={openSelection} employeeCount={mode === "guest" ? employees.length : employeeCount} />}
     {loading && <LoadingRoutes employeeCount={state.status === "loading" ? state.employeeCount : lastSelection.current.length} />}
     {state.status === "error" && <ErrorRoutes message={friendlyApiError(state.error instanceof ApiError ? state.error.code : undefined)}
-      onRetry={() => void optimize(mode === "guest" ? lastSelectedEmployees.current : lastSelection.current, lastMode.current)} />}
+      onRetry={() => void optimize(mode === "guest" ? lastSelectedEmployees.current : lastSelection.current, lastMode.current, lastOptimizationSettings.current)} />}
     {state.result && <>
       {(loading || state.status === "error") && <p className="section-note result-context">O resultado anterior continua disponível abaixo.</p>}
       {editing ? <ManualRouteEditor result={state.result} employees={employees} loading={editLoading} onCancel={() => setEditing(false)} onRestore={() => {if (originalResult) {applyResult(originalResult); setManuallyModified(false); setEditing(false);}}} onSave={saveEdits} /> : <Results key={state.status === "success" ? "current" : "previous"} result={state.result} manuallyModified={manuallyModified} onEdit={() => setEditing(true)} onExport={exportResult} />}
     </>}
-    {selectionOpen && <EmployeeSelectionModal employees={employees} maxSelection={mode === "guest" ? 12 : undefined} onClose={() => setSelectionOpen(false)} onConfirm={confirmSelection} />}
+    {selectionOpen && <EmployeeSelectionModal employees={employees} maxSelection={mode === "guest" ? 12 : undefined} canConfirm={!settingsError} confirmError={settingsError} onClose={() => setSelectionOpen(false)} onConfirm={confirmSelection} />}
     {exportPreview && <div className="modal-backdrop" role="dialog" aria-modal="true"><div className="modal-card"><div className="modal-header"><h2>Prévia Uber</h2><button className="icon-button" aria-label="Fechar prévia" onClick={() => setExportPreview(undefined)}>×</button></div><p className="section-note">Esta prévia não cria corridas nem envia dados à Uber.</p><pre className="export-preview">{exportPreview}</pre><div className="modal-actions"><button className="button button-primary" onClick={() => void navigator.clipboard?.writeText(exportPreview)}>Copiar JSON</button><button className="button button-quiet" onClick={() => setExportPreview(undefined)}>Fechar</button></div></div></div>}
   </>;
 }

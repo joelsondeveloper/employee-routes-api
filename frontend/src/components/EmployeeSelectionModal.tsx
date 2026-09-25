@@ -3,11 +3,13 @@ import {useMemo, useState} from "react";
 import {Modal} from "./Modal";
 import type {Employee} from "../types/api";
 
-export function EmployeeSelectionModal({employees, onClose, onConfirm, maxSelection}: {
+export function EmployeeSelectionModal({employees, onClose, onConfirm, maxSelection, canConfirm = true, confirmError}: {
   employees: Employee[];
   onClose: () => void;
   onConfirm: (ids: string[]) => void;
   maxSelection?: number;
+  canConfirm?: boolean;
+  confirmError?: string;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
@@ -43,9 +45,10 @@ export function EmployeeSelectionModal({employees, onClose, onConfirm, maxSelect
         </label>)}
         {!filtered.length && <p className="empty-table">Nenhum funcionário encontrado.</p>}
       </div>
+      {confirmError && <p className="form-error" role="alert">{confirmError}</p>}
     </div>
     <div className="modal-footer"><button type="button" className="button button-secondary" onClick={onClose}>Cancelar</button>
-      <button type="button" className="button button-primary" disabled={selected.size === 0} onClick={() => onConfirm([...selected])}><Users size={15} />Gerar rotas para {selected.size}</button></div>
+      <button type="button" className="button button-primary" disabled={selected.size === 0 || !canConfirm} onClick={() => onConfirm([...selected])}><Users size={15} />Gerar rotas para {selected.size}</button></div>
   </Modal>;
 }
 

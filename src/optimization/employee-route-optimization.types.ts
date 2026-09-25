@@ -1,5 +1,6 @@
 import type { Employee } from "../employees/employee.types.js";
 import type { CalculatedRoute, RouteEvaluation, RouteValidation } from "../routing/routing.types.js";
+import type { OptimizationBehaviorConfig, OptimizationProfile } from "./optimization-behavior.config.js";
 
 export interface OptimizedEmployeeGroup extends
   Pick<CalculatedRoute, "totalDurationSeconds" | "totalDistanceMeters">,
@@ -25,6 +26,8 @@ export interface EmployeeRouteOptimizationResult {
     /** Passengers per group, not a percentage. Zero for empty input. */
     averageOccupancy: number;
   };
+  optimizationProfile?: OptimizationProfile;
+  appliedOptimizationConfig?: OptimizationBehaviorConfig;
 }
 
 export type OptimizationIssue = (

@@ -1,4 +1,4 @@
-import type {ApiErrorBody, AuthSession, Employee, EmployeeWriteInput, GeocodingPreview, OptimizationResponse, ManualRouteInput} from "../types/api";
+import type {ApiErrorBody, AuthSession, Employee, EmployeeWriteInput, GeocodingPreview, OptimizationResponse, ManualRouteInput, OptimizationRequestConfig} from "../types/api";
 
 // In production the Vercel deployment proxies API paths to Railway. Keeping
 // this empty makes the browser request the proxy on its own origin, so the
@@ -67,12 +67,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   health: () => request<{status: string}>("/health"),
-  optimizeRoutes: (employeeIds: string[]) => request<OptimizationResponse>("/api/routes/optimize", {method: "POST", body: JSON.stringify({employeeIds})}),
-  recalculateRoutes: (employeeIds: string[], groups: ManualRouteInput[]) => request<OptimizationResponse>("/api/routes/recalculate", {method: "POST", body: JSON.stringify({employeeIds, groups})}),
+  optimizeRoutes: (employeeIds: string[], config?: OptimizationRequestConfig) => request<OptimizationResponse>("/api/routes/optimize", {method: "POST", body: JSON.stringify({employeeIds, ...config})}),
+  recalculateRoutes: (employeeIds: string[], groups: ManualRouteInput[], config?: OptimizationRequestConfig) => request<OptimizationResponse>("/api/routes/recalculate", {method: "POST", body: JSON.stringify({employeeIds, groups, ...config})}),
   listGuestEmployees: () => request<Employee[]>("/api/guest/employees"),
   guestGeocodePreview: (address: string) => request<GeocodingPreview>("/api/guest/geocoding/preview", {method: "POST", body: JSON.stringify({address})}),
-  optimizeGuestRoutes: (employees: Employee[]) => request<OptimizationResponse>("/api/guest/routes/optimize", {method: "POST", body: JSON.stringify({employees})}),
-  recalculateGuestRoutes: (employees: Employee[], groups: ManualRouteInput[]) => request<OptimizationResponse>("/api/guest/routes/recalculate", {method: "POST", body: JSON.stringify({employees, groups})}),
+  optimizeGuestRoutes: (employees: Employee[], config?: OptimizationRequestConfig) => request<OptimizationResponse>("/api/guest/routes/optimize", {method: "POST", body: JSON.stringify({employees, ...config})}),
+  recalculateGuestRoutes: (employees: Employee[], groups: ManualRouteInput[], config?: OptimizationRequestConfig) => request<OptimizationResponse>("/api/guest/routes/recalculate", {method: "POST", body: JSON.stringify({employees, groups, ...config})}),
   listEmployees: () => request<Employee[]>("/employees"),
   createEmployee: (input: EmployeeWriteInput) =>
     request<Employee>("/employees", {method: "POST", body: JSON.stringify(input)}),

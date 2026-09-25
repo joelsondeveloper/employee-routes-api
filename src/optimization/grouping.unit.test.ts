@@ -9,6 +9,7 @@ import { ScoredRouteCandidates, findBestScoredRoute } from "../routing/route-sco
 import { analyzeEmployeeGeography } from "../employees/employee-geography.service.js";
 import type { RoutingProvider, RoutingPoint } from "../routing/routing.types.js";
 import { LocationIQRoutingProvider } from "../routing/providers/locationiq-routing.provider.js";
+import { resolveOptimizationConfig } from "./optimization-behavior.config.js";
 
 const origin = { id: "company", latitude: 0, longitude: 0 };
 const employee = (id: string, longitude = 0.01) => analyzeEmployeeGeography({ id, latitude: 0, longitude, name: id, address: "", phone: "" }, origin);
@@ -33,6 +34,16 @@ test("low compatibility creates a new group and all available groups are evaluat
   const groups=await createCandidateGroups(origin,[employee("a",0.01),employee("b",1),employee("c",-2)],p);
   assert.equal(groups.length,3);
   assert.deepEqual(calls.map(ids => ids.slice(1)),[["a","b"],["a","c"],["b","c"]]);
+});
+test("per-execution threshold can create a new group without changing the normal preset", async () => {
+  const employees = [employee("a", 0.01), employee("b", 0.02)];
+  const normal = await createCandidateGroups(origin, employees, provider(60), resolveOptimizationConfig().config);
+  const strict = await createCandidateGroups(origin, employees, provider(60), resolveOptimizationConfig("CUSTOM", {
+    minimumCompatibilityScore: 100, maxDirectionDifference: 90, maxProximityKm: 10, maxDistanceDifferenceKm: 20,
+    maxAverageExtraDurationMinutes: 20, maxExtraDurationMinutes: 30,
+  }).config);
+  assert.equal(normal.length, 1);
+  assert.equal(strict.length, 2);
 });
 test("highest score wins even when an earlier group has room", async () => {
   const slow=provider(10000), fast=provider(0);

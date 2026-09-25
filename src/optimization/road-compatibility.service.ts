@@ -9,6 +9,8 @@ import type {
 import {
   ROAD_COMPATIBILITY_CONFIG,
 } from "./road-compatibility.config.js";
+import type { OptimizationBehaviorConfig } from "./optimization-behavior.config.js";
+import { NORMAL_OPTIMIZATION_CONFIG } from "./optimization-behavior.config.js";
 
 function normalizeLowerIsBetterAbsoluteValue(
   value: number,
@@ -28,17 +30,18 @@ function normalizeLowerIsBetterAbsoluteValue(
 export function calculateRoadCompatibility(
   averageExtraDurationSeconds: number,
   maxExtraDurationSeconds: number,
+  config: OptimizationBehaviorConfig = NORMAL_OPTIMIZATION_CONFIG,
 ): RoadCompatibilityScore {
   const averageDetourScore =
     normalizeLowerIsBetterAbsoluteValue(
       averageExtraDurationSeconds,
-      ROAD_COMPATIBILITY_CONFIG.maxAverageExtraDurationSeconds,
+      config.roadCompatibility.maxAverageExtraDurationSeconds,
     );
 
   const maxDetourScore =
     normalizeLowerIsBetterAbsoluteValue(
       maxExtraDurationSeconds,
-      ROAD_COMPATIBILITY_CONFIG.maxExtraDurationSeconds,
+      config.roadCompatibility.maxExtraDurationSeconds,
     );
 
   const roadScore =
