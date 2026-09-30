@@ -4,7 +4,9 @@ import {api} from "../services/api";
 import type {Employee} from "../types/api";
 
 const STORAGE_KEY = "employee-routes-guest-data";
-const STORAGE_VERSION = 1;
+// Bump the schema when the built-in dataset changes so browsers do not keep
+// an older guest dataset after the next deployment.
+const STORAGE_VERSION = 2;
 
 interface GuestStorage {version: number; employees: Employee[]}
 interface GuestValue {

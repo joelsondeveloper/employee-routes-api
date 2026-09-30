@@ -151,7 +151,7 @@ export function EmployeesPage({onCountChange, mode = "normal", employees: guestE
         {guest && <p className="section-note">Dados salvos somente neste navegador.</p>}
         {!loading && !error && <p className="section-note">{employees.length} funcionários cadastrados</p>}
       </div>
-      <div className="page-heading-actions"><button className="button button-primary" onClick={() => setModal("create")}><Plus size={16} />Novo funcionário</button>{guest && <button className="button button-quiet" onClick={() => { if (window.confirm("Isso substituirá os dados deste modo visitante pelos 30 funcionários de demonstração originais.")) void onRestoreGuest?.(); }}>Restaurar dados de demonstração</button>}</div>
+      <div className="page-heading-actions"><button className="button button-primary" onClick={() => setModal("create")}><Plus size={16} />Novo funcionário</button>{guest && <button className="button button-quiet" onClick={() => { if (window.confirm("Isso substituirá os dados deste modo visitante pelos 12 funcionários de demonstração originais.")) void onRestoreGuest?.(); }}>Restaurar dados de demonstração</button>}</div>
     </div>
     {error && <div className="form-error" role="alert">{error}
       <button className="button button-quiet" onClick={() => void load()}>Tentar novamente</button>

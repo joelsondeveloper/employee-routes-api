@@ -30,7 +30,7 @@ Private endpoints are `/employees`, `/api/geocoding/preview`, `/api/routes/optim
 
 ## Guest mode
 
-The unauthenticated guest playground exposes a fixed, read-only dataset of 30 fictitious employees through `GET /api/guest/employees`. The browser copies that dataset into versioned localStorage and keeps guest CRUD changes there; no guest employee is written to PostgreSQL.
+The unauthenticated guest playground exposes a fixed, read-only dataset of 12 fictitious employees through `GET /api/guest/employees`. The browser copies that dataset into versioned localStorage and keeps guest CRUD changes there; no guest employee is written to PostgreSQL.
 
 Guest optimization sends only the selected, validated employees to the isolated public routes. It accepts the same `optimizationProfile` and `optimizationConfig` fields as the authenticated route (and the same server-side ranges); the 12-employee guest cap is unchanged:
 

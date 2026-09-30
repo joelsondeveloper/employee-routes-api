@@ -2,6 +2,7 @@ import {useEffect} from "react";
 import {CircleMarker, MapContainer, Polyline, Popup, TileLayer, Tooltip, useMap} from "react-leaflet";
 import type {LatLngBoundsExpression} from "leaflet";
 import type {RouteGroup, RouteStop} from "../types/api";
+import {groupPassengersByLocation} from "../lib/route-map-utils";
 
 function MapViewport({stops}: {stops: RouteStop[]}) {
   const map = useMap();
@@ -24,6 +25,7 @@ export function RouteMap({groups, selectedGroup}: {groups: RouteGroup[]; selecte
   const passengers = groups.flatMap((group) => group.stops
     .filter((stop) => stop.type === "EMPLOYEE")
     .map((stop, index) => ({stop, order: index + 1, groupNumber: group.groupNumber})));
+  const passengerLocations = groupPassengersByLocation(passengers);
   const selectedStops = selectedGroup?.stops ?? [];
   const stopsToFit = selectedGroup ? selectedStops : [...(origin ? [origin] : []), ...passengers.map(({stop}) => stop)];
   const center: [number, number] = origin ? [origin.latitude, origin.longitude] : [-8.1678849, -34.9442083];
@@ -38,12 +40,31 @@ export function RouteMap({groups, selectedGroup}: {groups: RouteGroup[]; selecte
         pathOptions={{color: "#102a43", fillColor: "#102a43", fillOpacity: 1, weight: 2}}>
         <Tooltip>Empresa · origem</Tooltip><Popup><strong>Empresa</strong><br />Origem dos grupos</Popup>
       </CircleMarker>}
-      {passengers.map(({stop, order, groupNumber}) => {
-        const selected = groupNumber === selectedGroup?.groupNumber;
-        return <CircleMarker key={`${groupNumber}-${stop.id}`} center={[stop.latitude, stop.longitude]}
-          radius={selected ? 9 : 6} pathOptions={{color: selected ? "#1f6feb" : "#6f8ba5", fillOpacity: selected ? 1 : .65, weight: 2}}>
-          <Tooltip key={String(selected)} permanent={selected} direction="top">{selected ? String(order) : `Carro ${groupNumber} · ${stop.name}`}</Tooltip>
-          <Popup><strong>{stop.name}</strong><br />Carro {groupNumber} · parada {order}</Popup>
+      {passengerLocations.map(({latitude, longitude, passengers: locationPassengers}) => {
+        const selected = locationPassengers.some(({groupNumber}) => groupNumber === selectedGroup?.groupNumber);
+        const overlapping = locationPassengers.length > 1;
+        const firstPassenger = locationPassengers[0];
+        const markerKey = locationPassengers.map(({groupNumber, stop}) => `${groupNumber}-${stop.id}`).join("|");
+        return <CircleMarker key={markerKey} center={[latitude, longitude]}
+          radius={selected ? (overlapping ? 11 : 9) : (overlapping ? 9 : 6)}
+          pathOptions={{color: selected ? "#1f6feb" : "#6f8ba5", fillOpacity: selected ? 1 : .65, weight: 2}}>
+          <Tooltip permanent={selected || overlapping} direction="top">
+            {overlapping
+              ? `${locationPassengers.length} paradas no mesmo ponto`
+              : selected
+                ? String(firstPassenger.order)
+                : `Carro ${firstPassenger.groupNumber} · ${firstPassenger.stop.name}`}
+          </Tooltip>
+          <Popup>
+            {overlapping ? <>
+              <strong>{locationPassengers.length} paradas no mesmo ponto</strong>
+              <ul>
+                {locationPassengers.map(({stop, order, groupNumber}) => <li key={`${groupNumber}-${stop.id}`}>
+                  Carro {groupNumber} · parada {order}: {stop.name}
+                </li>)}
+              </ul>
+            </> : <><strong>{firstPassenger.stop.name}</strong><br />Carro {firstPassenger.groupNumber} · parada {firstPassenger.order}</>}
+          </Popup>
         </CircleMarker>;
       })}
       {selectedStops.length > 1 && <Polyline key={selectedGroup?.groupNumber} interactive={false} positions={selectedStops.map((stop) => [stop.latitude, stop.longitude] as [number, number])}

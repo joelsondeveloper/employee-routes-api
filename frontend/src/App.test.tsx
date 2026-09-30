@@ -23,7 +23,7 @@ it("keeps the in-flight operation and result across navigation, with one request
   await user.click(screen.getByRole("checkbox", {name: /Ana/}));
   await user.dblClick(screen.getByRole("button", {name: "Gerar rotas para 1"}));
   expect(optimize).toHaveBeenCalledTimes(1);
-  expect(optimize).toHaveBeenCalledWith([employeeFixture.id]);
+  expect(optimize).toHaveBeenCalledWith([employeeFixture.id], {optimizationProfile: "NORMAL"});
   await user.click(screen.getByRole("button", {name: "Funcionários"}));
   await screen.findByText("Ana");
   await user.click(screen.getByRole("button", {name: "Rotas"}));

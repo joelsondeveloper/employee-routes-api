@@ -23,9 +23,9 @@ test("guest dataset is public and optimization accepts only validated selections
     const list = await fetch(`${url}/api/guest/employees`);
     assert.equal(list.status, 200);
     const dataset = await list.json() as Employee[];
-    assert.equal(dataset.length, 30);
-    assert.equal(new Set(dataset.map((item) => item.id)).size, 30);
-    assert.equal(new Set(dataset.map((item) => item.phone)).size, 30);
+    assert.equal(dataset.length, 12);
+    assert.equal(new Set(dataset.map((item) => item.id)).size, 12);
+    assert.equal(new Set(dataset.map((item) => item.phone)).size, 12);
     assert.ok(dataset.every((item) => Number.isFinite(item.latitude) && item.latitude >= -9 && item.latitude <= -7 && Number.isFinite(item.longitude) && item.longitude >= -36 && item.longitude <= -34));
     const valid = await fetch(`${url}/api/guest/routes/optimize`, {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({employees: [employee("guest-local")]})});
     assert.equal(valid.status, 200);

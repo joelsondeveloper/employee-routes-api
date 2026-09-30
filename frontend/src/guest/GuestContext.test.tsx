@@ -1,7 +1,7 @@
 import {render, screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {afterEach, describe, expect, it, vi} from "vitest";
-import {GuestProvider, STORAGE_KEY, useGuest} from "./GuestContext";
+import {GuestProvider, STORAGE_KEY, STORAGE_VERSION, useGuest} from "./GuestContext";
 import {api} from "../services/api";
 
 const employee = {id: "demo-01", name: "Lucas", address: "Centro", phone: "(81) 99000-0001", latitude: -8.28, longitude: -35.03};
@@ -27,7 +27,7 @@ describe("GuestContext", () => {
     await user.click(screen.getByRole("button", {name: "enter"}));
     await waitFor(() => expect(screen.getByText("active")).toBeInTheDocument());
     expect(screen.getByText("1")).toBeInTheDocument();
-    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)).toEqual({version: 1, employees: [employee]});
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)).toEqual({version: STORAGE_VERSION, employees: [employee]});
   });
 
   it("restores the canonical dataset and persists it locally", async () => {
@@ -36,7 +36,7 @@ describe("GuestContext", () => {
     render(<GuestProvider><Harness /></GuestProvider>);
     await user.click(screen.getByRole("button", {name: "enter"}));
     await user.click(screen.getByRole("button", {name: "restore"}));
-    await waitFor(() => expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)).toEqual({version: 1, employees: [employee]}));
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)).toEqual({version: STORAGE_VERSION, employees: [employee]}));
   });
 });
 
