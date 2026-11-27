@@ -2,6 +2,7 @@ import {Router, type Request, type Response} from "express";
 import type {AuthService} from "./auth.types.js";
 import {createRequireAuth} from "./auth.middleware.js";
 import {AuthConfigurationError, InvalidGoogleTokenError} from "./google-auth.service.js";
+import {SESSION_MAX_AGE_SECONDS} from "./session-token.js";
 
 export function createAuthRouter(service: AuthService): Router {
   const router = Router();
@@ -14,7 +15,9 @@ export function createAuthRouter(service: AuthService): Router {
       const context = await service.signIn(credential);
       const sameSite = process.env.NODE_ENV === "production" ? "SameSite=None; " : "SameSite=Lax; ";
       const secure = process.env.NODE_ENV === "production" ? "Secure; " : "";
-      response.setHeader("Set-Cookie", `employee_routes_google_id=${encodeURIComponent(credential)}; Max-Age=3600; Path=/; HttpOnly; ${sameSite}${secure}`);
+      const cookieValue = context.sessionToken ?? credential;
+      const maxAge = context.sessionToken ? SESSION_MAX_AGE_SECONDS : 3600;
+      response.setHeader("Set-Cookie", `employee_routes_google_id=${encodeURIComponent(cookieValue)}; Max-Age=${maxAge}; Path=/; HttpOnly; ${sameSite}${secure}`);
       return response.json({user: {id: context.userId, name: context.name, email: context.email, ...(context.avatarUrl ? {avatarUrl: context.avatarUrl} : {})}, organization: {id: context.organizationId, name: context.organizationName}, role: context.role});
     } catch (error) {
       if (error instanceof AuthConfigurationError) return response.status(500).json({error: {code: "AUTH_CONFIGURATION", message: "A autenticação não está configurada."}});

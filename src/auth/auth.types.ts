@@ -5,8 +5,11 @@ export interface GoogleTokenVerifier {
   verify(idToken: string): Promise<GoogleIdentity>;
 }
 
+/** sessionToken, when present, replaces the short-lived Google token in the session cookie. */
+export type SignInResult = AuthContext & {sessionToken?: string};
+
 export interface AuthService {
-  signIn(idToken: string): Promise<AuthContext>;
+  signIn(idToken: string): Promise<SignInResult>;
   authenticate(idToken: string): Promise<AuthContext>;
 }
 

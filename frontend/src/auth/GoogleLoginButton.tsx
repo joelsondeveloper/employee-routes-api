@@ -9,7 +9,7 @@ declare global {
 
 export function GoogleLoginButton() {
   const ref = useRef<HTMLDivElement>(null);
-  const {signIn} = useAuth();
+  const {signIn, loginError} = useAuth();
   const [error, setError] = useState(false);
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
@@ -32,6 +32,6 @@ export function GoogleLoginButton() {
   }, [clientId, signIn]);
 
   if (!clientId) return <p className="muted">Login Google ainda não foi configurado neste ambiente.</p>;
-  return <div><div ref={ref} />{error && <p role="alert" className="error-text">Não foi possível entrar com o Google.</p>}</div>;
+  return <div><div ref={ref} />{(error || loginError) && <p role="alert" className="error-text">{loginError ?? "Não foi possível carregar o login do Google."}</p>}</div>;
 }
 

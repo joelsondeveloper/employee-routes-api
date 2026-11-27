@@ -67,3 +67,26 @@ test("Google sign-in returns the resolved user and organization", async () => {
   });
 });
 
+
+test("signed session tokens outlive the Google token and reject tampering", async () => {
+  const {createSessionToken, verifySessionToken, SESSION_MAX_AGE_SECONDS} = await import("./session-token.js");
+  const now = Date.UTC(2026, 0, 1);
+  const token = createSessionToken("google-sub", "secret", now);
+  assert.equal(verifySessionToken(token, "secret", now + 2 * 3600 * 1000), "google-sub");
+  assert.equal(verifySessionToken(token, "other-secret", now), undefined);
+  assert.equal(verifySessionToken(`${token}x`, "secret", now), undefined);
+  assert.equal(verifySessionToken(token, "secret", now + (SESSION_MAX_AGE_SECONDS + 1) * 1000), undefined);
+});
+
+test("DefaultAuthService issues a session cookie token and authenticates with it", async () => {
+  const {DefaultAuthService} = await import("./auth.service.js");
+  const ctx = context("org-a");
+  const verifier = {async verify(token: string) { if (token !== "google-token") throw new Error("bad"); return {subject: "sub-1", email: "a@example.com", name: "A"}; }};
+  const repo = {async upsertGoogleIdentity() { return ctx; }, async findByGoogleSubject(subject: string) { return subject === "sub-1" ? ctx : undefined; }};
+  const auth = new DefaultAuthService(verifier, repo, "secret");
+  const signedIn = await auth.signIn("google-token");
+  assert.ok(signedIn.sessionToken);
+  assert.deepEqual(await auth.authenticate(signedIn.sessionToken!), ctx);
+  assert.deepEqual(await auth.authenticate("google-token"), ctx);
+  await assert.rejects(auth.authenticate("ers1.forged.token"));
+});
