@@ -14,7 +14,10 @@ const origin: RoutingPoint = {id: "company", ...company.coordinates};
 /** Deterministic employees within ~22 km of the company (same generator as the audit measurement). */
 function employees(count: number): Employee[] {
   let seed = 42;
-  const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const random = () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
   return Array.from({length: count}, (_, index) => ({
     id: `e${index}`, name: `E${index}`, address: "", phone: "",
     latitude: origin.latitude + (random() - 0.5) * 0.4,
