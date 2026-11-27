@@ -10,7 +10,9 @@ describe("route exporters", () => {
     const preview = buildUberPreview(result, employees);
     expect(preview.length).toBe(result.groups.length);
     expect(preview.some(item => item.ready)).toBe(true);
-    expect((preview.find(item => item.ready)?.payload as Record<string, unknown>).pickup).toBeDefined();
+    const ready = preview.find(item => item.ready);
+    expect(ready?.payload).toBeDefined();
+    expect((ready!.payload as Record<string, unknown>).pickup).toBeDefined();
   });
   it("escapes CSV and creates text output", () => {
     expect(operationalCsv(result, employees)).toContain('"Rua, 10"');

@@ -20,7 +20,7 @@ export function EmployeeLocationMap({coordinates, onChange}: {
   onChange: (coordinates: EmployeeCoordinates) => void;
 }) {
   const icon = L.divIcon({className: "employee-marker", html: "<span aria-hidden=\"true\"></span>", iconSize: [22, 22], iconAnchor: [11, 11]});
-  return <div className="employee-location-map" aria-label="Mapa da localização do funcionário">
+  return <div className="employee-location-map" role="region" aria-label="Mapa da localização do funcionário">
     <MapContainer center={[coordinates.latitude, coordinates.longitude]} zoom={15} scrollWheelZoom className="leaflet-container">
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>'

@@ -136,6 +136,27 @@ describe("RoutesPage", () => {
     expect(optimize).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps the editor open and shows an error when the manual recalculation fails", async () => {
+    vi.spyOn(api, "optimizeRoutes").mockResolvedValue(resultFixture());
+    const recalculate = vi.spyOn(api, "recalculateRoutes").mockRejectedValue(new ApiError(503, "ROUTING_PROVIDER_UNAVAILABLE"));
+    vi.spyOn(api, "listEmployees").mockResolvedValue([
+      {id: "ana", name: "Ana", address: "Rua Ana", phone: "1", latitude: -8.1, longitude: -34.9},
+    ]);
+    const user = userEvent.setup();
+    render(<RoutesPage />);
+
+    await user.click(screen.getAllByRole("button", {name: "Gerar rotas"})[0]!);
+    await user.click(screen.getByRole("checkbox", {name: /Ana/}));
+    await user.click(screen.getByRole("button", {name: "Gerar rotas para 1"}));
+    await user.click(await screen.findByRole("button", {name: "Editar rotas"}));
+    await user.click(screen.getByRole("button", {name: "Salvar alterações"}));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("O serviço de rotas está temporariamente indisponível.");
+    expect(screen.getByRole("region", {name: "Edição manual de rotas"})).toBeInTheDocument();
+    expect(screen.getByRole("button", {name: "Salvar alterações"})).toBeEnabled();
+    expect(recalculate).toHaveBeenCalledTimes(1);
+  });
+
   it("updates elapsed time while the optimization is pending", async () => {
     vi.useFakeTimers();
     let resolveRequest!: (value: OptimizationResponse) => void;
