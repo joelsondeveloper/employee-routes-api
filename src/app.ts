@@ -19,7 +19,19 @@ export interface AppOptions {
   frontendOrigin?: string;
   /** Production enables auth by default; injected test stores remain opt-in. */
   requireAuthentication?: boolean;
+  /**
+   * "unavailable" serves only /health and the guest playground: private routes
+   * answer 503 without creating database or Google dependencies. Used when the
+   * deployment has no DATABASE_URL (e.g. Vercel previews).
+   */
+  privateApi?: "enabled" | "unavailable";
 }
+
+const PRIVATE_PREFIXES = ["/employees", "/api/auth", "/api/geocoding", "/api/routes"] as const;
+
+const privateApiUnavailable: RequestHandler = (_request, response) => {
+  response.status(503).json({error: {code: "PRIVATE_API_UNAVAILABLE", message: "Login e dados da organização não estão disponíveis neste ambiente. Use o modo visitante."}});
+};
 
 function resolveAuthService(options: AppOptions, authRequired: boolean): AuthService | undefined {
   if (options.auth?.service) return options.auth.service;
@@ -53,6 +65,13 @@ export function createApp(options: AppOptions = {}): Express {
   app.get("/", (_request, response) => response.json({message: "Employee Routes API"}));
   app.get("/health", (_request, response) => response.json({status: "ok"}));
 
+  if (options.privateApi === "unavailable") {
+    for (const prefix of PRIVATE_PREFIXES) app.use(prefix, privateApiUnavailable);
+    app.use("/api/guest", createGuestRouter(options.guest));
+    app.use(errorHandler);
+    return app;
+  }
+
   const injectedStore = Boolean(options.employees || options.optimization || options.geocoding);
   const authRequired = options.requireAuthentication ?? (Boolean(process.env.DATABASE_URL) && !injectedStore && process.env.NODE_ENV !== "test");
   const authService = resolveAuthService(options, authRequired);
@@ -68,15 +87,14 @@ export function createApp(options: AppOptions = {}): Express {
   app.use("/api/routes", authMiddleware, createOptimizationRouter(options.optimization));
   app.use("/api/guest", createGuestRouter(options.guest));
 
-  app.use((error: unknown, _request: Request, response: Response, next: NextFunction) => {
-    if (response.headersSent) return next(error);
-    if (error instanceof SyntaxError) return response.status(400).json({error: {code: "INVALID_JSON", message: "O corpo da requisição contém JSON inválido."}});
-    console.error("UNHANDLED_REQUEST_ERROR", {error: error instanceof Error ? error.name : "unknown"});
-    return response.status(500).json({error: {code: "INTERNAL_ERROR", message: "Ocorreu um erro interno."}});
-  });
+  app.use(errorHandler);
   return app;
 }
 
-const app = createApp();
-export default app;
+function errorHandler(error: unknown, _request: Request, response: Response, next: NextFunction) {
+  if (response.headersSent) return next(error);
+  if (error instanceof SyntaxError) return response.status(400).json({error: {code: "INVALID_JSON", message: "O corpo da requisição contém JSON inválido."}});
+  console.error("UNHANDLED_REQUEST_ERROR", {error: error instanceof Error ? error.name : "unknown"});
+  return response.status(500).json({error: {code: "INTERNAL_ERROR", message: "Ocorreu um erro interno."}});
+}
 

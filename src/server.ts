@@ -22,7 +22,8 @@ if (!Number.isInteger(port) || port <= 0) {
 async function start(): Promise<void> {
   if (!process.env.DATABASE_URL) {
     if (nodeEnv === "production") throw new Error("DATABASE_URL is required in production.");
-    const {default: app} = await import("./app.js");
+    // Local development without PostgreSQL keeps the legacy SQLite store.
+    const app = createApp();
     app.listen(port, () => console.log(`Server is running on http://localhost:${port}`));
     return;
   }

@@ -49,3 +49,24 @@ test("guest rate limit and manual group validation are enforced", async () => {
   });
 });
 
+test("privateApi unavailable keeps guest optimization working and never builds private dependencies", async () => {
+  const previous = process.env.DATABASE_URL;
+  // A URL that would fail if any repository tried to connect.
+  process.env.DATABASE_URL = "postgres://invalid:invalid@127.0.0.1:1/none";
+  const app = createApp({privateApi: "unavailable", guest: {optimize: async (_origin, employees) => ({...result, summary: {...result.summary, totalEmployees: employees.length}})}});
+  const server = app.listen(0);
+  await new Promise<void>((resolve) => server.once("listening", resolve));
+  const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  try {
+    const optimized = await fetch(`${url}/api/guest/routes/optimize`, {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({employees: [employee("guest-local")]})});
+    assert.equal(optimized.status, 200);
+    const privateRoute = await fetch(`${url}/employees/abc`, {method: "DELETE"});
+    assert.equal(privateRoute.status, 503);
+    const body = await privateRoute.json() as {error: {code: string; message: string}};
+    assert.equal(body.error.code, "PRIVATE_API_UNAVAILABLE");
+    assert.match(body.error.message, /modo visitante/);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    if (previous === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = previous;
+  }
+});

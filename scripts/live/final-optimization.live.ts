@@ -1,9 +1,9 @@
-import {getDatabase} from "../database/database.js";
-import { optimizeEmployeeRoutes } from "./employee-route-optimization.service.js";
-import { LocationIQRoutingProvider } from "../routing/providers/locationiq-routing.provider.js";
-import type { Employee } from "../employees/employee.types.js";
-import type { RoutingPoint } from "../routing/routing.types.js";
-import { company } from "../company/company.config.js";
+import {getDatabase} from "../../src/database/database.js";
+import { optimizeEmployeeRoutes } from "../../src/optimization/employee-route-optimization.service.js";
+import { LocationIQRoutingProvider } from "../../src/routing/providers/locationiq-routing.provider.js";
+import type { Employee } from "../../src/employees/employee.types.js";
+import type { RoutingPoint } from "../../src/routing/routing.types.js";
+import { company } from "../../src/company/company.config.js";
 
 // Ajuste APENAS estes imports/nome da classe caso o projeto
 // exporte o banco ou provider com nomes diferentes.

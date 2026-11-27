@@ -1,14 +1,14 @@
 import type {
   GroupingPoint,
-} from "./group-compatibility.types.js";
+} from "../../src/optimization/group-compatibility.types.js";
 
 import {
   evaluateCandidateForGroup,
-} from "./group-candidate-evaluator.service.js";
+} from "../../src/optimization/group-candidate-evaluator.service.js";
 
 import {
   LocationIQRoutingProvider,
-} from "../routing/providers/locationiq-routing.provider.js";
+} from "../../src/routing/providers/locationiq-routing.provider.js";
 
 
 const points: GroupingPoint[] = [
