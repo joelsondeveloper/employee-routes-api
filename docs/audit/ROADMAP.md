@@ -4,7 +4,17 @@
 - **Data:** 2026-11-27
 - **Regra de execução:** um item = um branch = um PR, na ordem abaixo. Esforço: **P** ≤ 1 dia, **M** 2–4 dias, **G** 1–2 semanas (ritmo de projeto de estudo).
 
-## 0. Decisões pendentes (a sua mensagem chegou com dois placeholders)
+## 0. Decisões
+
+**Confirmadas em 2026-11-27:**
+- N = 100, com mínimo obrigatório de 40.
+- Cadastro só por convite de ADMIN; a allowlist serve apenas para o primeiro ADMIN.
+- Ordem: P0-1 → P1-1 → P0-2 → P0-3 → P0-4 → P0-5 → P0-6 → demais itens.
+- O modo preview sem banco entra já no P0-1.
+- Testcontainers só no GitHub Actions; fora do CI, os testes de integração são pulados automaticamente.
+- No P0-2, se o limite real da matriz ficar abaixo de 12 pontos, parar e consultar antes de seguir.
+
+### Premissas originais (agora confirmadas)
 
 | Decisão | Premissa usada neste roadmap | Como muda se você escolher outra |
 |---|---|---|
@@ -334,9 +344,9 @@ flowchart LR
   P31 --> P32
 ```
 
-Ordem proposta dos PRs: **P0-1 → P0-2 → P0-3 → P1-1 → P0-4 → P0-5 → P0-6 → P1-2 → P1-3 → (P2-1) → P3-1 → P3-2**.
+Ordem **aprovada** dos PRs: **P0-1 → P1-1 → P0-2 → P0-3 → P0-4 → P0-5 → P0-6 → P1-2 → P1-3 → (P2-1) → P3-1 → P3-2**.
 
-P1-1 sobe para antes de P0-4 porque o CI é pré-requisito para as migrations no deploy, e todo PR seguinte passa a ter rede de proteção.
+P1-1 vem logo após P0-1: o CI precisa existir antes de mexer no algoritmo central (P0-2).
 
 ## 6. Ações que vão exigir a sua confirmação ao longo do caminho
 
