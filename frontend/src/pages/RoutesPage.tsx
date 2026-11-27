@@ -16,6 +16,10 @@ import {formatElapsed} from "../lib/formatters";
 import {OptimizationSettings, defaultOptimizationRequest, optimizationConfigError} from "../components/OptimizationSettings";
 import type {OptimizationRequestConfig} from "../types/api";
 
+/** Must match the backend limits (MAX_EMPLOYEES_PER_RUN and the guest cap). */
+export const MAX_EMPLOYEES_PER_RUN = 100;
+const GUEST_MAX_EMPLOYEES = 12;
+
 function EmptyRoutes({onOptimize, employeeCount}: {onOptimize: () => void; employeeCount?: number}) {
   return <div className="empty-state"><div className="empty-inner">
     <div className="empty-icon"><RouteIcon size={28} /></div>
@@ -42,7 +46,7 @@ function LoadingRoutes({employeeCount}: {employeeCount: number}) {
   return <div className="loading-panel" aria-busy="true"><div className="empty-inner">
     <div className="spinner" aria-hidden="true" />
     <h2 className="loading-title">Otimizando rotas...</h2>
-    <p className="loading-copy">Estamos analisando {employeeCount} {employeeCount === 1 ? "funcionário" : "funcionários"} e seus trajetos. Isso pode levar cerca de 1–2 minutos.</p>
+    <p className="loading-copy">Estamos analisando {employeeCount} {employeeCount === 1 ? "funcionário" : "funcionários"} e seus trajetos. Costuma levar menos de um minuto.</p>
     <div className="loading-activity" role="status" aria-live="polite">
       <span className="loading-activity-dot" aria-hidden="true" />
       <span>{activities[activityIndex]}</span>
@@ -191,7 +195,7 @@ export function RoutesPage({employeeCount, mode = "normal", employees: guestEmpl
       {(loading || state.status === "error") && <p className="section-note result-context">O resultado anterior continua disponível abaixo.</p>}
       {editing ? <ManualRouteEditor result={state.result} employees={employees} loading={editLoading} error={editError} onCancel={() => { setEditing(false); setEditError(undefined); }} onRestore={() => {if (originalResult) {applyResult(originalResult); setManuallyModified(false); setEditing(false);}}} onSave={(groups) => void saveEdits(groups)} /> : <Results key={state.status === "success" ? "current" : "previous"} result={state.result} manuallyModified={manuallyModified} onEdit={() => setEditing(true)} onExport={exportResult} />}
     </>}
-    {selectionOpen && <EmployeeSelectionModal employees={employees} maxSelection={mode === "guest" ? 12 : undefined} canConfirm={!settingsError} confirmError={settingsError} onClose={() => setSelectionOpen(false)} onConfirm={confirmSelection} />}
+    {selectionOpen && <EmployeeSelectionModal employees={employees} maxSelection={mode === "guest" ? GUEST_MAX_EMPLOYEES : MAX_EMPLOYEES_PER_RUN} canConfirm={!settingsError} confirmError={settingsError} onClose={() => setSelectionOpen(false)} onConfirm={confirmSelection} />}
     {exportPreview && <div className="modal-backdrop" role="dialog" aria-modal="true"><div className="modal-card"><div className="modal-header"><h2>Prévia Uber</h2><button className="icon-button" aria-label="Fechar prévia" onClick={() => setExportPreview(undefined)}>×</button></div><p className="section-note">Esta prévia não cria corridas nem envia dados à Uber.</p><pre className="export-preview">{exportPreview}</pre><div className="modal-actions"><button className="button button-primary" onClick={() => void navigator.clipboard?.writeText(exportPreview)}>Copiar JSON</button><button className="button button-quiet" onClick={() => setExportPreview(undefined)}>Fechar</button></div></div></div>}
   </>;
 }

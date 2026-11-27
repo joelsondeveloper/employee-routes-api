@@ -7,6 +7,7 @@ import { optimizeEmployeeRoutes } from "./employee-route-optimization.service.js
 import type { EmployeeRouteOptimizationResult, OptimizedEmployeeGroup, OptimizationIssue } from "./employee-route-optimization.types.js";
 import {
   InvalidRoutingMatrixError,
+  OptimizationBudgetExceededError,
   RouteUnavailableError,
   RoutingInputError,
   RoutingMatrixTooLargeError,
@@ -26,6 +27,21 @@ import type {
 } from "./optimization.http.types.js";
 import { recalculateManualGroups, type ManualRouteGroupInput } from "./manual-route.service.js";
 import { OptimizationConfigurationError, optimizationConfigKey, resolveOptimizationConfig } from "./optimization-behavior.config.js";
+
+/** Product target (roadmap P0-2): 100 employees per execution, 40 at minimum. */
+export const MAX_EMPLOYEES_PER_RUN = 100;
+/** Vercel stops the function at 300 s; stop earlier with a clear error instead. */
+export const OPTIMIZATION_BUDGET_MS = 240_000;
+
+export function tooManyEmployees(count: number): HttpErrorResponse | undefined {
+  if (count <= MAX_EMPLOYEES_PER_RUN) return undefined;
+  return {error: {code: "TOO_MANY_EMPLOYEES", message: `Selecione no máximo ${MAX_EMPLOYEES_PER_RUN} funcionários por otimização.`}};
+}
+
+export function logOptimization(kind: "optimize" | "recalculate" | "guest-optimize" | "guest-recalculate", employees: number, result: EmployeeRouteOptimizationResult): void {
+  console.info("OPTIMIZATION_COMPLETED", {kind, employees, groups: result.groups.length, issues: result.issues.length,
+    externalCalls: result.diagnostics?.externalCalls, durationMs: result.diagnostics?.durationMs, profile: result.optimizationProfile});
+}
 
 export interface OptimizationRouteDependencies {
   employeeRepository?: EmployeeRepository;
@@ -153,6 +169,7 @@ export function responseForResult(result: EmployeeRouteOptimizationResult, emplo
     summary: result.summary,
   };
   if (result.optimizationProfile) response.optimizationProfile = result.optimizationProfile;
+  if (result.diagnostics) response.diagnostics = {...result.diagnostics};
   if (result.appliedOptimizationConfig) response.appliedOptimizationConfig = {
       minimumCompatibilityScore: result.appliedOptimizationConfig.minimumCompatibilityScore,
       maxDirectionDifference: result.appliedOptimizationConfig.maxDirectionDifference,
@@ -165,6 +182,10 @@ export function responseForResult(result: EmployeeRouteOptimizationResult, emplo
 }
 
 export function optimizationErrorResponse(error: unknown): {status: number; body: HttpErrorResponse} {
+  if (error instanceof OptimizationBudgetExceededError) {
+    console.error("OPTIMIZATION_BUDGET_EXCEEDED", {budgetMs: error.budgetMs, externalCalls: error.externalCalls});
+    return {status: 504, body: {error: {code: "OPTIMIZATION_TIME_BUDGET_EXCEEDED", message: "A otimização excedeu o tempo máximo. Tente com menos funcionários."}}};
+  }
   if (error instanceof RoutingInputError) {
     return {status: 400, body: {error: {code: "INVALID_ROUTING_INPUT", message: "Os dados de roteamento são inválidos."}}};
   }
@@ -214,6 +235,8 @@ export function createOptimizationRouter(dependencies: OptimizationRouteDependen
     if (new Set(employeeIds).size !== employeeIds.length) {
       return response.status(400).json({error: {code: "INVALID_REQUEST", message: "employeeIds não pode conter IDs duplicados."}} satisfies HttpErrorResponse);
     }
+    const tooMany = tooManyEmployees(employeeIds.length);
+    if (tooMany) return response.status(400).json(tooMany);
 
     let resolvedConfig;
     try {
@@ -237,7 +260,9 @@ export function createOptimizationRouter(dependencies: OptimizationRouteDependen
         }
         const selectedEmployees = employeeIds.map((id) => byId.get(id)!);
         const origin: RoutingPoint = {id: "company", ...company.coordinates};
-        return runOptimization(origin, selectedEmployees, makeProvider(), resolvedConfig.config, resolvedConfig.profile).then((result) => responseForResult(result, selectedEmployees, origin));
+        const result = await runOptimization(origin, selectedEmployees, makeProvider(), resolvedConfig.config, resolvedConfig.profile, {budgetMs: OPTIMIZATION_BUDGET_MS});
+        logOptimization("optimize", selectedEmployees.length, result);
+        return responseForResult(result, selectedEmployees, origin);
       }).finally(() => { inFlight.delete(key); });
       inFlight.set(key, execution);
     }
@@ -260,6 +285,8 @@ export function createOptimizationRouter(dependencies: OptimizationRouteDependen
       return response.status(400).json({error: {code: "INVALID_REQUEST", message: "Informe employeeIds e groups válidos."}} satisfies HttpErrorResponse);
     }
     const employeeIds = body.employeeIds as string[];
+    const tooMany = tooManyEmployees(employeeIds.length);
+    if (tooMany) return response.status(400).json(tooMany);
     const organizationId = request.auth?.organizationId ?? "legacy";
     const allEmployees = await employeeRepository.list(organizationId);
     const byId = new Map(allEmployees.map(employee => [employee.id, employee]));
@@ -284,7 +311,7 @@ export function createOptimizationRouter(dependencies: OptimizationRouteDependen
     try {
       const origin: RoutingPoint = {id: "company", ...company.coordinates};
       const selected = employeeIds.map(id => byId.get(id)!);
-      const recalculated = await recalculateManualGroups(origin, selected, inputs, makeProvider());
+      const recalculated = await recalculateManualGroups(origin, selected, inputs, makeProvider(), {budgetMs: OPTIMIZATION_BUDGET_MS});
       const result: EmployeeRouteOptimizationResult = {
         groups: recalculated.groups,
         issues: recalculated.issues,
@@ -293,7 +320,9 @@ export function createOptimizationRouter(dependencies: OptimizationRouteDependen
           unroutableEmployees: 0, averageOccupancy: recalculated.groups.length ? selected.length / recalculated.groups.length : 0},
         optimizationProfile: resolvedConfig.profile,
         appliedOptimizationConfig: resolvedConfig.config,
+        diagnostics: recalculated.diagnostics,
       };
+      logOptimization("recalculate", selected.length, result);
       return response.json(responseForResult(result, selected, origin));
     } catch (error) {
       const mapped = optimizationErrorResponse(error);

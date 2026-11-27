@@ -92,7 +92,8 @@ test("LocationIQ serializes calls and retries 429 respecting Retry-After", async
     return Response.json({durations:[[0,60],[60,0]],distances:[[0,100],[100,0]]});
   };
   try {
-    const p=new LocationIQRoutingProvider();
+    // Pacing is explicit here: the assertions below measure it.
+    const p=new LocationIQRoutingProvider({minIntervalMs:2000});
     const points=[origin,employee("a").employee];
     const results=await Promise.all([p.getMatrix(points),p.getMatrix(points)]);
     assert.equal(starts.length,3);

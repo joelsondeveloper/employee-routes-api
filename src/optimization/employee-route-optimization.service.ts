@@ -1,4 +1,4 @@
-import { ExecutionRoutingProvider } from "../routing/execution-routing.provider.js";
+import { ExecutionRoutingProvider, type ExecutionRoutingOptions } from "../routing/execution-routing.provider.js";
 import { RouteUnavailableError } from "../routing/routing.errors.js";
 import { validateRoutingPoints, validateRoutingMatrix, getRouteMetric } from "../routing/routing-validation.service.js";
 import type { Employee } from "../employees/employee.types.js";
@@ -17,9 +17,10 @@ export async function optimizeEmployeeRoutes(
   routingProvider: RoutingProvider,
   optimizationConfig: OptimizationBehaviorConfig = NORMAL_OPTIMIZATION_CONFIG,
   optimizationProfile: OptimizationProfile = "NORMAL",
+  executionOptions: ExecutionRoutingOptions = {},
 ): Promise<EmployeeRouteOptimizationResult> {
   validateRoutingPoints([origin, ...employees]);
-  const executionProvider = new ExecutionRoutingProvider(routingProvider);
+  const executionProvider = new ExecutionRoutingProvider(routingProvider, executionOptions);
   await executionProvider.prepare([origin, ...employees]);
   const issues: OptimizationIssue[] = [];
   const routable: Employee[] = [];
@@ -86,5 +87,6 @@ export async function optimizeEmployeeRoutes(
     },
     optimizationProfile,
     appliedOptimizationConfig: optimizationConfig,
+    diagnostics: {externalCalls: executionProvider.externalCalls, durationMs: executionProvider.elapsedMs},
   };
 }

@@ -94,6 +94,8 @@ export interface OptimizationResponse {
   summary: OptimizationSummary;
   optimizationProfile?: OptimizationProfile;
   appliedOptimizationConfig?: AppliedOptimizationConfig;
+  /** Provider requests and duration of this execution (informational). */
+  diagnostics?: {externalCalls: number; durationMs: number};
 }
 
 export type OptimizationProfile = "NORMAL" | "CONSERVATIVE" | "CUSTOM";

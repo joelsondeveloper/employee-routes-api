@@ -81,6 +81,7 @@ export interface OptimizeRoutesResponse {
   summary: OptimizationSummaryResponse;
   optimizationProfile?: OptimizationProfileResponse;
   appliedOptimizationConfig?: AppliedOptimizationConfigResponse;
+  diagnostics?: {externalCalls: number; durationMs: number};
 }
 
 export interface HttpErrorResponse {

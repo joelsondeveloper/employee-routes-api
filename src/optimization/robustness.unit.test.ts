@@ -122,26 +122,28 @@ test("LocationIQ null, domain codes and technical response classifications",asyn
   const fetch=globalThis.fetch,key=process.env.LOCATIONIQ_API_KEY;
   process.env.LOCATIONIQ_API_KEY="test-key";
   const points=[origin,employee("a")];
+  // Retries (5xx, network) are covered in locationiq-resilience.unit.test.ts; keep this one fast.
+  const fastProvider=()=>new LocationIQRoutingProvider({minIntervalMs:0,baseBackoffMs:1});
   try {
     globalThis.fetch=async()=>Response.json({code:"Ok",durations:[[0,null],[60,0]],distances:[[0,null],[100,0]]});
-    const m=await new LocationIQRoutingProvider().getMatrix(points);assert.equal(m.metrics[0]![1],null);
+    const m=await fastProvider().getMatrix(points);assert.equal(m.metrics[0]![1],null);
     for(const code of ["NoTable","NoSegment"]){
       globalThis.fetch=async()=>Response.json({code},{status:400});
-      await assert.rejects(new LocationIQRoutingProvider().getMatrix(points),RouteUnavailableError);
+      await assert.rejects(fastProvider().getMatrix(points),RouteUnavailableError);
     }
     globalThis.fetch=async()=>Response.json({code:"TooBig"},{status:400});
-    await assert.rejects(new LocationIQRoutingProvider().getMatrix(points),RoutingMatrixTooLargeError);
+    await assert.rejects(fastProvider().getMatrix(points),RoutingMatrixTooLargeError);
     for(const status of [401,403,500,503]){
       globalThis.fetch=async()=>Response.json({code:"NoTable"},{status});
-      await assert.rejects(new LocationIQRoutingProvider().getMatrix(points),e=>e instanceof Error&&!(e instanceof RouteUnavailableError));
+      await assert.rejects(fastProvider().getMatrix(points),e=>e instanceof Error&&!(e instanceof RouteUnavailableError));
     }
     for(const body of [{}, {durations:[[0]],distances:[[0]]}, {durations:[[0,null],[60,0]],distances:[[0,1],[100,0]]}]){
       globalThis.fetch=async()=>Response.json(body);
-      await assert.rejects(new LocationIQRoutingProvider().getMatrix(points),InvalidRoutingMatrixError);
+      await assert.rejects(fastProvider().getMatrix(points),InvalidRoutingMatrixError);
     }
     globalThis.fetch=async()=>{throw new Error("timeout");};
-    await assert.rejects(new LocationIQRoutingProvider().getMatrix(points),/timeout/);
+    await assert.rejects(fastProvider().getMatrix(points),/timeout/);
     delete process.env.LOCATIONIQ_API_KEY;
-    await assert.rejects(new LocationIQRoutingProvider().getMatrix(points),/not configured/);
+    await assert.rejects(fastProvider().getMatrix(points),/not configured/);
   } finally {globalThis.fetch=fetch;if(key===undefined)delete process.env.LOCATIONIQ_API_KEY;else process.env.LOCATIONIQ_API_KEY=key;}
 });

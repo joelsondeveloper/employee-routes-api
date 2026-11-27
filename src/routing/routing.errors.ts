@@ -40,3 +40,11 @@ export class RoutingMatrixTooLargeError extends Error {
     this.name = "RoutingMatrixTooLargeError";
   }
 }
+
+/** The execution ran out of its time budget before finishing its provider calls. */
+export class OptimizationBudgetExceededError extends Error {
+  constructor(public readonly budgetMs: number, public readonly externalCalls: number) {
+    super(`Optimization exceeded its ${budgetMs} ms budget after ${externalCalls} provider calls.`);
+    this.name = "OptimizationBudgetExceededError";
+  }
+}

@@ -7,6 +7,8 @@ export const apiErrorMessages: Record<string, string> = {
   ROUTE_UNAVAILABLE: "Não foi possível encontrar uma rota para esta combinação.",
   ROUTING_PROVIDER_UNAVAILABLE: "O serviço de rotas está temporariamente indisponível.",
   ROUTING_PROVIDER_TIMEOUT: "O serviço de rotas demorou mais que o esperado.",
+  OPTIMIZATION_TIME_BUDGET_EXCEEDED: "A otimização excedeu o tempo máximo. Tente com menos funcionários.",
+  TOO_MANY_EMPLOYEES: "Selecione no máximo 100 funcionários por otimização.",
   NETWORK_ERROR: "Não foi possível conectar ao backend.",
   INVALID_RESPONSE: "Não foi possível ler a resposta do servidor. Tente novamente.",
   ADDRESS_NOT_FOUND: "Não encontramos esse endereço. Inclua rua, número, bairro e cidade.",

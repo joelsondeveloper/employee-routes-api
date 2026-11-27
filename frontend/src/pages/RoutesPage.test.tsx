@@ -157,6 +157,19 @@ describe("RoutesPage", () => {
     expect(recalculate).toHaveBeenCalledTimes(1);
   });
 
+  it("caps the authenticated selection at the backend limit of 100 employees", async () => {
+    vi.spyOn(api, "listEmployees").mockResolvedValue(Array.from({length: 101}, (_, index) => (
+      {id: `e${index}`, name: `Funcionário ${index}`, address: "Rua", phone: "1", latitude: -8.1, longitude: -34.9})));
+    const user = userEvent.setup();
+    render(<RoutesPage />);
+    await waitFor(() => expect(screen.getAllByRole("button", {name: "Gerar rotas"})[0]).toBeEnabled());
+    await user.click(screen.getAllByRole("button", {name: "Gerar rotas"})[0]!);
+    expect(screen.getByText("Até 100 funcionários por otimização.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", {name: "Selecionar todos"}));
+    expect(screen.getByText("100 de 101 selecionados")).toBeInTheDocument();
+    expect(screen.getByRole("button", {name: "Gerar rotas para 100"})).toBeEnabled();
+  });
+
   it("updates elapsed time while the optimization is pending", async () => {
     vi.useFakeTimers();
     let resolveRequest!: (value: OptimizationResponse) => void;

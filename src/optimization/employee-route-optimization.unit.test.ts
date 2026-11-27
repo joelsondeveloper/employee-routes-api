@@ -9,7 +9,8 @@ const origin={id:"company",latitude:0,longitude:0};
 const employees: Employee[]=Array.from({length:4},(_,i)=>({id:String(i),name:String(i),latitude:0,longitude:0.001,address:"",phone:""}));
 const provider=(duration:number):RoutingProvider=>({async getMatrix(points){return {points,metrics:points.map((_,i)=>points.map((_,j)=>({durationSeconds:i===j?0:duration,distanceMeters:i===j?0:100})))};}});
 test("empty input returns zero summary without Matrix calls",async()=>{
-  const result=await optimizeEmployeeRoutes(origin,[],{async getMatrix(){throw Error("unexpected");}});
+  const {diagnostics,...result}=await optimizeEmployeeRoutes(origin,[],{async getMatrix(){throw Error("unexpected");}});
+  assert.equal(diagnostics?.externalCalls,0);
   assert.deepEqual(result,{groups:[],issues:[],summary:{totalEmployees:0,totalGroups:0,acceptableGroups:0,rejectedGroups:0,unavailableGroups:0,unroutableEmployees:0,averageOccupancy:0},optimizationProfile:"NORMAL",appliedOptimizationConfig:{minimumCompatibilityScore:35,maxDirectionDifference:90,maxProximityKm:10,maxDistanceDifferenceKm:20,roadCompatibility:{maxAverageExtraDurationSeconds:1200,maxExtraDurationSeconds:1800}}});
 });
 test("single passenger exposes original employee, stop IDs and direct metrics",async()=>{
