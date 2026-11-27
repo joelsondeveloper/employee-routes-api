@@ -53,7 +53,14 @@ Testes com provider falso confirmam os limites (`optimization-scale.unit.test.ts
 
 ### Medição real com o otimizador novo
 
-_Preenchido após a execução no preview (abaixo)._
+Medição de 2026-11-27 no preview, com o código deste PR, a chave real e uma grade sintética de pontos em terra (`scripts/live/inland-grid.ts`):
+
+| Funcionários | Requisições | Tempo total | Grupos | Aceitos / rejeitados | Ocupação média | Antes (auditoria) |
+|---:|---:|---:|---:|---:|---:|---:|
+| 40 | **6** | **5,4 s** | 11 | 3 / 8 | 3,64 | 216 req., ~7,2 min |
+| 100 | **36** | **36,7 s** | 27 | 9 / 18 | 3,70 | 554 req., ~18,5 min |
+
+O tempo é praticamente todo o espaçamento de 1 s entre requisições. Os muitos grupos "rejeitados" vêm da grade sintética, com pontos espalhados de forma uniforme e desvios acima de 15 min: o critério de aceite não mudou neste PR. Para repetir a medição: `npm run test:live -- scale`.
 
 ## Consequências
 
