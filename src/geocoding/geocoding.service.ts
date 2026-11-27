@@ -13,6 +13,32 @@ interface LocationIQResult {
   lon: number;
 }
 
+const GEOCODING_TIMEOUT_MS = 10_000;
+const GEOCODING_ATTEMPTS = 2;
+const GEOCODING_RETRY_DELAY_MS = 750;
+
+/** One retry for throttling, server or network failures; an operator is waiting on the form. */
+async function fetchGeocoding(url: string): Promise<Response> {
+  for (let attempt = 1; ; attempt++) {
+    let response: Response | undefined;
+    let failure: unknown;
+    try {
+      response = await fetch(url, {signal: AbortSignal.timeout(GEOCODING_TIMEOUT_MS)});
+    } catch (error) {
+      failure = error;
+    }
+    const retryable = failure !== undefined || response!.status === 429 || response!.status >= 500;
+    if (!retryable || attempt >= GEOCODING_ATTEMPTS) {
+      if (failure !== undefined) {
+        throw new GeocodingProviderError(failure instanceof Error ? failure.message : "Geocoding request failed.");
+      }
+      return response!;
+    }
+    await response?.body?.cancel();
+    await new Promise((resolve) => setTimeout(resolve, GEOCODING_RETRY_DELAY_MS * attempt));
+  }
+}
+
 export async function geocodeAddress(
   address: string,
 ): Promise<GeocodingResult> {
@@ -28,16 +54,7 @@ export async function geocodeAddress(
     format: "json",
   });
 
-  let response: Response;
-  try {
-    response = await fetch(
-      `https://us1.locationiq.com/v1/search.php?${params}`,
-    );
-  } catch (error) {
-    throw new GeocodingProviderError(
-      error instanceof Error ? error.message : "Geocoding request failed.",
-    );
-  }
+  const response = await fetchGeocoding(`https://us1.locationiq.com/v1/search.php?${params}`);
 
   if (response.status === 404) {
     throw new GeocodingNotFoundError();

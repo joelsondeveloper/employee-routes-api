@@ -19,22 +19,65 @@ interface LocationIQResponse {
   distances: (number | null)[][];
 }
 
+export interface LocationIQRoutingOptions {
+  /** Minimum gap between requests. The free plan allows 2 req/s; 1000 ms leaves room for other callers. */
+  minIntervalMs?: number;
+  /** Per-attempt timeout; an aborted request counts as a retryable network failure. */
+  timeoutMs?: number;
+  /** Total attempts for 429, 5xx and network/timeout failures. 4xx domain answers are never retried. */
+  maxAttempts?: number;
+  /** First backoff; doubles per attempt with up to +100% jitter. Retry-After wins when larger. */
+  baseBackoffMs?: number;
+  random?: () => number;
+}
+
+function retryAfterMs(header: string | null): number {
+  if (header === null) return 0;
+  const seconds = Number(header);
+  if (Number.isFinite(seconds)) return seconds * 1000;
+  const date = Date.parse(header);
+  return Number.isFinite(date) ? Math.max(0, date - Date.now()) : 0;
+}
+
 export class LocationIQRoutingProvider implements RoutingProvider {
   private queue: Promise<unknown> = Promise.resolve();
   private nextRequestAt = 0;
+  private readonly minIntervalMs: number;
+  private readonly timeoutMs: number;
+  private readonly maxAttempts: number;
+  private readonly baseBackoffMs: number;
+  private readonly random: () => number;
 
+  constructor(options: LocationIQRoutingOptions = {}) {
+    this.minIntervalMs = options.minIntervalMs ?? 1000;
+    this.timeoutMs = options.timeoutMs ?? 15_000;
+    this.maxAttempts = options.maxAttempts ?? 3;
+    this.baseBackoffMs = options.baseBackoffMs ?? 1000;
+    this.random = options.random ?? Math.random;
+  }
+
+  /** Serialized and paced; retries throttling, server and network failures with exponential backoff. */
   private request(url: string): Promise<Response> {
     const task = this.queue.then(async () => {
-      for (let attempt = 0; ; attempt++) {
+      for (let attempt = 1; ; attempt++) {
         await new Promise((resolve) => setTimeout(resolve, Math.max(0, this.nextRequestAt - Date.now())));
-        const response = await fetch(url);
-        this.nextRequestAt = Date.now() + 2000;
-        if (response.status !== 429 || attempt >= 2) return response;
-        const retryAfter = response.headers.get("retry-after");
-        const seconds = retryAfter === null ? NaN : Number(retryAfter);
-        const delay = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(retryAfter ?? "") - Date.now();
-        this.nextRequestAt = Date.now() + Math.max(2000 * 2 ** attempt, Number.isFinite(delay) ? delay : 0);
-        await response.body?.cancel();
+        let response: Response | undefined;
+        let failure: unknown;
+        try {
+          response = await fetch(url, {signal: AbortSignal.timeout(this.timeoutMs)});
+        } catch (error) {
+          failure = error;
+        }
+        this.nextRequestAt = Date.now() + this.minIntervalMs;
+        const retryable = failure !== undefined || response!.status === 429 || response!.status >= 500;
+        if (!retryable || attempt >= this.maxAttempts) {
+          if (failure !== undefined) throw failure;
+          return response!;
+        }
+        const backoff = this.baseBackoffMs * 2 ** (attempt - 1) * (1 + this.random());
+        const wait = Math.max(this.minIntervalMs, backoff, response ? retryAfterMs(response.headers.get("retry-after")) : 0);
+        this.nextRequestAt = Date.now() + wait;
+        await response?.body?.cancel();
       }
     });
     this.queue = task.catch(() => undefined);

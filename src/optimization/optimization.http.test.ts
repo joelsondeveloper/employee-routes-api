@@ -266,3 +266,18 @@ test("same selection with different profiles does not share in-flight result", a
     assert.deepEqual(profiles.sort(), ["CONSERVATIVE", "NORMAL"]);
   });
 });
+
+test("more than 100 employees per execution is rejected before any lookup or provider call", async () => {
+  let optimizeCalls = 0;
+  await withServer({employeeStore: store([]), optimize: async () => { optimizeCalls++; return result; }}, async (baseUrl) => {
+    for (const path of ["/api/routes/optimize", "/api/routes/recalculate"]) {
+      const employeeIds = Array.from({length: 101}, (_, index) => `e-${index}`);
+      const response = await fetch(`${baseUrl}${path}`, {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({employeeIds, groups: []})});
+      assert.equal(response.status, 400, path);
+      const body = await response.json() as {error: {code: string; message: string}};
+      assert.equal(body.error.code, "TOO_MANY_EMPLOYEES");
+      assert.match(body.error.message, /100/);
+    }
+  });
+  assert.equal(optimizeCalls, 0);
+});

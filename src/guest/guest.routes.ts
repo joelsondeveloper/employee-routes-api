@@ -6,7 +6,7 @@ import {GeocodingNotFoundError, GeocodingProviderError} from "../geocoding/geoco
 import {logExternalProviderFailure} from "../external-provider.logging.js";
 import {optimizeEmployeeRoutes} from "../optimization/employee-route-optimization.service.js";
 import {recalculateManualGroups, type ManualRouteGroupInput} from "../optimization/manual-route.service.js";
-import {optimizationErrorResponse, responseForResult} from "../optimization/optimization.routes.js";
+import {logOptimization, OPTIMIZATION_BUDGET_MS, optimizationErrorResponse, responseForResult} from "../optimization/optimization.routes.js";
 import {LocationIQRoutingProvider} from "../routing/providers/locationiq-routing.provider.js";
 import type {RoutingPoint, RoutingProvider} from "../routing/routing.types.js";
 import type {GeocodingRouteDependencies} from "../geocoding/geocoding.routes.js";
@@ -124,7 +124,8 @@ export function createGuestRouter(dependencies: GuestRouteDependencies = {}): Ro
     }
     try {
       const origin: RoutingPoint = {id: "company", ...company.coordinates};
-      const result = await optimize(origin, selected, makeProvider(), resolvedConfig.config, resolvedConfig.profile);
+      const result = await optimize(origin, selected, makeProvider(), resolvedConfig.config, resolvedConfig.profile, {budgetMs: OPTIMIZATION_BUDGET_MS});
+      logOptimization("guest-optimize", selected.length, result);
       return response.json(responseForResult(result, selected, origin));
     } catch (error) {
       const mapped = optimizationErrorResponse(error);
@@ -146,9 +147,11 @@ export function createGuestRouter(dependencies: GuestRouteDependencies = {}): Ro
     }
     try {
       const origin: RoutingPoint = {id: "company", ...company.coordinates};
-      const result = await recalculateManualGroups(origin, selected, parsedGroups.groups!, makeProvider());
+      const result = await recalculateManualGroups(origin, selected, parsedGroups.groups!, makeProvider(), {budgetMs: OPTIMIZATION_BUDGET_MS});
       const summary = {totalEmployees: selected.length, totalGroups: result.groups.length, acceptableGroups: result.groups.filter((group) => group.acceptable).length, rejectedGroups: result.groups.filter((group) => !group.acceptable).length, unavailableGroups: result.issues.filter((issue) => issue.type === "UNAVAILABLE_GROUP").length, unroutableEmployees: result.issues.filter((issue) => issue.type === "UNROUTABLE_EMPLOYEE").length, averageOccupancy: result.groups.length ? result.groups.reduce((sum, group) => sum + group.employees.length, 0) / result.groups.length : 0};
-      return response.json(responseForResult({...result, summary, optimizationProfile: resolvedConfig.profile, appliedOptimizationConfig: resolvedConfig.config}, selected, origin));
+      const full = {...result, summary, optimizationProfile: resolvedConfig.profile, appliedOptimizationConfig: resolvedConfig.config};
+      logOptimization("guest-recalculate", selected.length, full);
+      return response.json(responseForResult(full, selected, origin));
     } catch (error) {
       const mapped = optimizationErrorResponse(error);
       return response.status(mapped.status).json(mapped.body);

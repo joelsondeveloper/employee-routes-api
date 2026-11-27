@@ -28,6 +28,13 @@ export interface EmployeeRouteOptimizationResult {
   };
   optimizationProfile?: OptimizationProfile;
   appliedOptimizationConfig?: OptimizationBehaviorConfig;
+  diagnostics?: OptimizationDiagnostics;
+}
+
+export interface OptimizationDiagnostics {
+  /** Requests sent to the routing provider (LocationIQ) during this execution. */
+  externalCalls: number;
+  durationMs: number;
 }
 
 export type OptimizationIssue = (

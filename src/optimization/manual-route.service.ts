@@ -1,5 +1,5 @@
 import type { Employee } from "../employees/employee.types.js";
-import { ExecutionRoutingProvider } from "../routing/execution-routing.provider.js";
+import { ExecutionRoutingProvider, type ExecutionRoutingOptions } from "../routing/execution-routing.provider.js";
 import { RouteUnavailableError } from "../routing/routing.errors.js";
 import { calculateRoute } from "../routing/route-calculator.service.js";
 import { evaluateRoute, evaluateRouteCandidates } from "../routing/route-evaluator.service.js";
@@ -7,7 +7,7 @@ import { ScoredRouteCandidates, findBestScoredAttempt, findBestScoredRoute } fro
 import { validateRoute } from "../routing/route-constraints.service.js";
 import { validateRoutingMatrix } from "../routing/routing-validation.service.js";
 import type { RoutingPoint, RoutingProvider } from "../routing/routing.types.js";
-import type { OptimizedEmployeeGroup, OptimizationIssue } from "./employee-route-optimization.types.js";
+import type { OptimizationDiagnostics, OptimizedEmployeeGroup, OptimizationIssue } from "./employee-route-optimization.types.js";
 
 export interface ManualRouteGroupInput {
   groupNumber: number;
@@ -20,9 +20,10 @@ export async function recalculateManualGroups(
   employees: Employee[],
   inputs: ManualRouteGroupInput[],
   routingProvider: RoutingProvider,
-): Promise<{groups: OptimizedEmployeeGroup[]; issues: OptimizationIssue[]}> {
+  executionOptions: ExecutionRoutingOptions = {},
+): Promise<{groups: OptimizedEmployeeGroup[]; issues: OptimizationIssue[]; diagnostics: OptimizationDiagnostics}> {
   const byId = new Map(employees.map(employee => [employee.id, employee]));
-  const executionProvider = new ExecutionRoutingProvider(routingProvider);
+  const executionProvider = new ExecutionRoutingProvider(routingProvider, executionOptions);
   await executionProvider.prepare([origin, ...employees]);
   const groups: OptimizedEmployeeGroup[] = [];
   const issues: OptimizationIssue[] = [];
@@ -74,5 +75,5 @@ export async function recalculateManualGroups(
       issues.push({type: "UNAVAILABLE_GROUP", groupNumber: input.groupNumber, employees: passengers, reason: error.message, relations: error.relations});
     }
   }
-  return {groups, issues};
+  return {groups, issues, diagnostics: {externalCalls: executionProvider.externalCalls, durationMs: executionProvider.elapsedMs}};
 }
