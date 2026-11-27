@@ -1,6 +1,6 @@
 import {useState} from "react";
 import type {ReactNode} from "react";
-import {Map, Menu, Route, Users, X} from "lucide-react";
+import {Map as MapIcon, Menu, Route, Users, X} from "lucide-react";
 import type {AuthSession} from "../types/api";
 
 interface LayoutProps {
@@ -27,7 +27,7 @@ export function Layout({page, onNavigate, children, apiStatus = "checking", sess
           <div><div className="brand-name">Employee Routes</div><div className="brand-subtitle">Operação de transporte</div></div>
         </div>
         <nav className="nav" aria-label="Navegação principal">
-          <button className={`nav-link ${page === "routes" ? "active" : ""}`} aria-current={page === "routes" ? "page" : undefined} onClick={() => navigate("routes")}><Map size={17} />Rotas</button>
+          <button className={`nav-link ${page === "routes" ? "active" : ""}`} aria-current={page === "routes" ? "page" : undefined} onClick={() => navigate("routes")}><MapIcon size={17} />Rotas</button>
           <button className={`nav-link ${page === "employees" ? "active" : ""}`} aria-current={page === "employees" ? "page" : undefined} onClick={() => navigate("employees")}><Users size={17} />Funcionários</button>
         </nav>
         <div className="sidebar-footer">V1 · Otimização operacional<br />Dados calculados sob demanda</div>

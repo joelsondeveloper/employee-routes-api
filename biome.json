@@ -1,0 +1,40 @@
+{
+	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+	"files": {
+		"includes": ["src/**", "api/**", "scripts/**", "frontend/src/**", "!**/dist", "!**/node_modules"]
+	},
+	"formatter": { "enabled": false },
+	"assist": { "enabled": false },
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"preset": "recommended",
+			"a11y": {
+				"useButtonType": "warn",
+				"useKeyWithClickEvents": "warn",
+				"useSemanticElements": "warn"
+			},
+			"complexity": {
+				"noImportantStyles": "warn",
+				"noUselessEmptyExport": "warn",
+				"useOptionalChain": "warn"
+			},
+			"correctness": {
+				"noUnusedImports": "warn",
+				"noUnusedVariables": "warn",
+				"useExhaustiveDependencies": "warn"
+			},
+			"style": {
+				"noDescendingSpecificity": "warn",
+				"noNonNullAssertion": "warn",
+				"useConst": "warn",
+				"useImportType": "warn"
+			},
+			"suspicious": {
+				"noArrayIndexKey": "warn",
+				"noImplicitAnyLet": "warn",
+				"useIterableCallbackReturn": "warn"
+			}
+		}
+	}
+}

@@ -128,6 +128,7 @@ export function RoutesPage({employeeCount, mode = "normal", employees: guestEmpl
   const [employeeLoadError, setEmployeeLoadError] = useState("");
   const [editing, setEditing] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState<string>();
   const [originalResult, setOriginalResult] = useState<OptimizationResponse>();
   const [exportPreview, setExportPreview] = useState<string>();
   const [manuallyModified, setManuallyModified] = useState(false);
@@ -156,7 +157,16 @@ export function RoutesPage({employeeCount, mode = "normal", employees: guestEmpl
     const selection = mode === "guest" ? lastSelectedEmployees.current : ids;
     void optimize(selection, mode, optimizationSettings).then(result => {if (result) setOriginalResult(result);});
   };
-  const saveEdits = async (groups: import("../types/api").ManualRouteInput[]) => { setEditLoading(true); try { const result = mode === "guest" ? await api.recalculateGuestRoutes(lastSelectedEmployees.current, groups, lastOptimizationSettings.current) : await api.recalculateRoutes(lastSelection.current, groups, lastOptimizationSettings.current); applyResult(result); setManuallyModified(true); setEditing(false); } finally { setEditLoading(false); } };
+  // Never rejects: a failed recalculation stays in the editor with a visible error.
+  const saveEdits = async (groups: import("../types/api").ManualRouteInput[]) => {
+    setEditLoading(true); setEditError(undefined);
+    try {
+      const result = mode === "guest" ? await api.recalculateGuestRoutes(lastSelectedEmployees.current, groups, lastOptimizationSettings.current) : await api.recalculateRoutes(lastSelection.current, groups, lastOptimizationSettings.current);
+      applyResult(result); setManuallyModified(true); setEditing(false);
+    } catch (error) {
+      setEditError(friendlyApiError(error instanceof ApiError ? error.code : undefined, "Não foi possível recalcular as rotas. Suas alterações continuam aqui."));
+    } finally { setEditLoading(false); }
+  };
   const exportResult = (kind: "uber" | "json" | "csv" | "text") => { if (!state.result) return; if (kind === "uber") { const previews = buildUberPreview(state.result, employees); setExportPreview(JSON.stringify(previews, null, 2)); } else { const content = kind === "json" ? internalJson(state.result, employees) : kind === "csv" ? operationalCsv(state.result, employees) : routeText(state.result); const blob = new Blob([content], {type: kind === "csv" ? "text/csv;charset=utf-8" : "text/plain;charset=utf-8"}); const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = `rotas.${kind === "json" ? "json" : kind === "csv" ? "csv" : "txt"}`; anchor.click(); URL.revokeObjectURL(url); } };
   return <>
     <div className="page-heading">
@@ -179,7 +189,7 @@ export function RoutesPage({employeeCount, mode = "normal", employees: guestEmpl
       onRetry={() => void optimize(mode === "guest" ? lastSelectedEmployees.current : lastSelection.current, lastMode.current, lastOptimizationSettings.current)} />}
     {state.result && <>
       {(loading || state.status === "error") && <p className="section-note result-context">O resultado anterior continua disponível abaixo.</p>}
-      {editing ? <ManualRouteEditor result={state.result} employees={employees} loading={editLoading} onCancel={() => setEditing(false)} onRestore={() => {if (originalResult) {applyResult(originalResult); setManuallyModified(false); setEditing(false);}}} onSave={saveEdits} /> : <Results key={state.status === "success" ? "current" : "previous"} result={state.result} manuallyModified={manuallyModified} onEdit={() => setEditing(true)} onExport={exportResult} />}
+      {editing ? <ManualRouteEditor result={state.result} employees={employees} loading={editLoading} error={editError} onCancel={() => { setEditing(false); setEditError(undefined); }} onRestore={() => {if (originalResult) {applyResult(originalResult); setManuallyModified(false); setEditing(false);}}} onSave={(groups) => void saveEdits(groups)} /> : <Results key={state.status === "success" ? "current" : "previous"} result={state.result} manuallyModified={manuallyModified} onEdit={() => setEditing(true)} onExport={exportResult} />}
     </>}
     {selectionOpen && <EmployeeSelectionModal employees={employees} maxSelection={mode === "guest" ? 12 : undefined} canConfirm={!settingsError} confirmError={settingsError} onClose={() => setSelectionOpen(false)} onConfirm={confirmSelection} />}
     {exportPreview && <div className="modal-backdrop" role="dialog" aria-modal="true"><div className="modal-card"><div className="modal-header"><h2>Prévia Uber</h2><button className="icon-button" aria-label="Fechar prévia" onClick={() => setExportPreview(undefined)}>×</button></div><p className="section-note">Esta prévia não cria corridas nem envia dados à Uber.</p><pre className="export-preview">{exportPreview}</pre><div className="modal-actions"><button className="button button-primary" onClick={() => void navigator.clipboard?.writeText(exportPreview)}>Copiar JSON</button><button className="button button-quiet" onClick={() => setExportPreview(undefined)}>Fechar</button></div></div></div>}

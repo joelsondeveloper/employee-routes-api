@@ -30,7 +30,7 @@ export function RouteMap({groups, selectedGroup}: {groups: RouteGroup[]; selecte
   const stopsToFit = selectedGroup ? selectedStops : [...(origin ? [origin] : []), ...passengers.map(({stop}) => stop)];
   const center: [number, number] = origin ? [origin.latitude, origin.longitude] : [-8.1678849, -34.9442083];
 
-  return <div className="map-shell" aria-label="Mapa da sequência de paradas">
+  return <div className="map-shell" role="region" aria-label="Mapa da sequência de paradas">
     <MapContainer center={center} zoom={12} scrollWheelZoom={false}>
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
