@@ -12,9 +12,17 @@ let appPromise: Promise<Express> | undefined;
 async function buildApp(): Promise<Express> {
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required.");
   const runtime = await initializePostgresRuntime();
+  // Without a Google client ID (e.g. preview envs) the guest mode still works;
+  // private routes answer AUTH_CONFIGURATION instead of the whole API failing.
+  let authService: DefaultAuthService | undefined;
+  try {
+    authService = new DefaultAuthService(new GoogleAuthService(), runtime.authRepository);
+  } catch (error) {
+    console.error("AUTH_CONFIGURATION_ERROR", {error: error instanceof Error ? error.message : "unknown"});
+  }
   return createApp({
     requireAuthentication: true,
-    auth: {service: new DefaultAuthService(new GoogleAuthService(), runtime.authRepository)},
+    ...(authService ? {auth: {service: authService}} : {}),
     employees: {employeeRepository: runtime.employeeRepository},
     optimization: {employeeRepository: runtime.employeeRepository},
   });
