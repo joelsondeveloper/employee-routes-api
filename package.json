@@ -1,16 +1,16 @@
 {
   "dependencies": {
-    "express": "^5.2.1",
-    "google-auth-library": "^11.1.0",
-    "pg": "^8.23.0"
+    "express": "^5.3.0",
+    "google-auth-library": "^11.3.4",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.9",
     "@types/better-sqlite3": "^9.6.0",
     "@types/express": "^5.0.6",
-    "@types/node": "^26.5.1",
+    "@types/node": "^26.6.7",
     "@types/pg": "^8.23.1",
-    "tsx": "^4.23.13",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   },
   "name": "employee-routes-api",
@@ -40,7 +40,7 @@
   },
   "homepage": "https://github.com/joelsondeveloper/employee-routes-api#readme",
   "optionalDependencies": {
-    "better-sqlite3": "^13.0.3"
+    "better-sqlite3": "^13.2.0"
   },
   "engines": {
     "node": ">=22"
