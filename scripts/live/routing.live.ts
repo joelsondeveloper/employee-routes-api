@@ -1,16 +1,16 @@
-import { LocationIQRoutingProvider } from "./providers/locationiq-routing.provider.js";
+import { LocationIQRoutingProvider } from "../../src/routing/providers/locationiq-routing.provider.js";
 
 import {
   findFastestRoute,
   evaluateRouteCandidates,
-} from "./route-optimizer.service.js";
+} from "../../src/routing/route-optimizer.service.js";
 
-import { evaluateRoute } from "./route-evaluator.service.js";
+import { evaluateRoute } from "../../src/routing/route-evaluator.service.js";
 
 import {
   ScoredRouteCandidates,
   findBestScoredRoute,
-} from "./route-score.service.js";
+} from "../../src/routing/route-score.service.js";
 
 const provider = new LocationIQRoutingProvider();
 

@@ -10,7 +10,12 @@ import {initializePostgresRuntime} from "../src/database/runtime.js";
 let appPromise: Promise<Express> | undefined;
 
 async function buildApp(): Promise<Express> {
-  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required.");
+  // Previews run without a database on purpose: only /health and the guest
+  // playground work, so a branch deployment can never touch production data.
+  if (!process.env.DATABASE_URL) {
+    console.warn("PRIVATE_API_DISABLED", {reason: "DATABASE_URL is not set; serving /health and /api/guest only."});
+    return createApp({privateApi: "unavailable"});
+  }
   const runtime = await initializePostgresRuntime();
   // Without a Google client ID (e.g. preview envs) the guest mode still works;
   // private routes answer AUTH_CONFIGURATION instead of the whole API failing.

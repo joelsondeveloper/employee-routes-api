@@ -4,6 +4,14 @@ import {createRequireAuth} from "./auth.middleware.js";
 import {AuthConfigurationError, InvalidGoogleTokenError} from "./google-auth.service.js";
 import {SESSION_MAX_AGE_SECONDS} from "./session-token.js";
 
+// Lax: the app is same-origin (Vercel serves the SPA and the API together), so
+// the cookie never needs to travel on cross-site requests. Lax also blocks it on
+// cross-site POSTs, which closes the form-based CSRF path (e.g. logout).
+function sessionCookie(value: string, maxAgeSeconds: number): string {
+  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  return `employee_routes_google_id=${encodeURIComponent(value)}; Max-Age=${maxAgeSeconds}; Path=/; HttpOnly; SameSite=Lax${secure}`;
+}
+
 export function createAuthRouter(service: AuthService): Router {
   const router = Router();
   router.post("/google", async (request: Request, response: Response) => {
@@ -13,11 +21,9 @@ export function createAuthRouter(service: AuthService): Router {
     }
     try {
       const context = await service.signIn(credential);
-      const sameSite = process.env.NODE_ENV === "production" ? "SameSite=None; " : "SameSite=Lax; ";
-      const secure = process.env.NODE_ENV === "production" ? "Secure; " : "";
       const cookieValue = context.sessionToken ?? credential;
       const maxAge = context.sessionToken ? SESSION_MAX_AGE_SECONDS : 3600;
-      response.setHeader("Set-Cookie", `employee_routes_google_id=${encodeURIComponent(cookieValue)}; Max-Age=${maxAge}; Path=/; HttpOnly; ${sameSite}${secure}`);
+      response.setHeader("Set-Cookie", sessionCookie(cookieValue, maxAge));
       return response.json({user: {id: context.userId, name: context.name, email: context.email, ...(context.avatarUrl ? {avatarUrl: context.avatarUrl} : {})}, organization: {id: context.organizationId, name: context.organizationName}, role: context.role});
     } catch (error) {
       if (error instanceof AuthConfigurationError) return response.status(500).json({error: {code: "AUTH_CONFIGURATION", message: "A autenticação não está configurada."}});
@@ -32,9 +38,7 @@ export function createAuthRouter(service: AuthService): Router {
     return response.json({user: {id: context.userId, name: context.name, email: context.email, ...(context.avatarUrl ? {avatarUrl: context.avatarUrl} : {})}, organization: {id: context.organizationId, name: context.organizationName}, role: context.role});
   });
   router.post("/logout", (_request: Request, response: Response) => {
-    const sameSite = process.env.NODE_ENV === "production" ? "SameSite=None; " : "SameSite=Lax; ";
-    const secure = process.env.NODE_ENV === "production" ? "Secure; " : "";
-    return response.setHeader("Set-Cookie", `employee_routes_google_id=; Max-Age=0; Path=/; HttpOnly; ${sameSite}${secure}`).sendStatus(204);
+    return response.setHeader("Set-Cookie", sessionCookie("", 0)).sendStatus(204);
   });
   return router;
 }

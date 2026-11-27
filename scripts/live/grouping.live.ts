@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { LocationIQRoutingProvider } from "../routing/providers/locationiq-routing.provider.js";
-import { optimizeEmployeeRoutes } from "./employee-route-optimization.service.js";
-import { GROUPING_CONFIG } from "./grouping.config.js";
-import { ROUTE_CONSTRAINTS_CONFIG } from "../routing/route-constraints.config.js";
+import { LocationIQRoutingProvider } from "../../src/routing/providers/locationiq-routing.provider.js";
+import { optimizeEmployeeRoutes } from "../../src/optimization/employee-route-optimization.service.js";
+import { GROUPING_CONFIG } from "../../src/optimization/grouping.config.js";
+import { ROUTE_CONSTRAINTS_CONFIG } from "../../src/routing/route-constraints.config.js";
 
 const points = [
   {

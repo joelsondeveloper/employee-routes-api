@@ -90,3 +90,25 @@ test("DefaultAuthService issues a session cookie token and authenticates with it
   assert.deepEqual(await auth.authenticate("google-token"), ctx);
   await assert.rejects(auth.authenticate("ers1.forged.token"));
 });
+
+test("session cookie is SameSite=Lax, and Secure in production, on login and logout", async () => {
+  const previous = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+  try {
+    await withServer(async (url) => {
+      const login = await fetch(`${url}/api/auth/google`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({credential: "test-token"})});
+      const loginCookie = login.headers.get("set-cookie") ?? "";
+      assert.match(loginCookie, /SameSite=Lax/);
+      assert.match(loginCookie, /; Secure/);
+      assert.match(loginCookie, /HttpOnly/);
+      assert.doesNotMatch(loginCookie, /SameSite=None/);
+      const logout = await fetch(`${url}/api/auth/logout`, {method: "POST"});
+      assert.equal(logout.status, 204);
+      const logoutCookie = logout.headers.get("set-cookie") ?? "";
+      assert.match(logoutCookie, /Max-Age=0/);
+      assert.match(logoutCookie, /SameSite=Lax/);
+    });
+  } finally {
+    if (previous === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = previous;
+  }
+});

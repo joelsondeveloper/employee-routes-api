@@ -67,9 +67,17 @@ export function internalJson(result: OptimizationResponse, employees: Employee[]
   return JSON.stringify({generatedAt: new Date().toISOString(), result, employees}, null, 2);
 }
 
-function csvCell(value: unknown): string {
-  const text = String(value ?? "");
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+// Spreadsheet apps evaluate cells starting with = + - @ (or tab/CR) as formulas,
+// so a name like `=HYPERLINK(...)` would run when the CSV is opened. Such cells
+// get a leading apostrophe. Plain numbers are kept as-is: coordinates in Brazil
+// are negative and must stay numeric.
+const FORMULA_PREFIX = /^[=+\-@\t\r]/;
+const PLAIN_NUMBER = /^-?\d+(\.\d+)?$/;
+
+export function csvCell(value: unknown): string {
+  const raw = String(value ?? "");
+  const text = FORMULA_PREFIX.test(raw) && !PLAIN_NUMBER.test(raw) ? `'${raw}` : raw;
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 export function operationalCsv(result: OptimizationResponse, employees: Employee[]): string {

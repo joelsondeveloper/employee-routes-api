@@ -77,8 +77,13 @@ Backend:
 
 ```bash
 npm run typecheck
-npm test
+npm test          # todos os src/**/*.test.ts e api/**/*.test.ts, sem rede
+npm run test:live # scripts manuais em scripts/live/: chamam a LocationIQ real e gastam cota
 ```
+
+`npm run test:live -- routing` roda só os scripts cujo nome contém `routing`. Eles leem `LOCATIONIQ_API_KEY` do `.env`.
+
+Sem `DATABASE_URL` (por exemplo, nos previews da Vercel), a função serverless sobe só com `/health` e `/api/guest/*`. As rotas privadas respondem `503 PRIVATE_API_UNAVAILABLE`, e um deploy de branch nunca toca os dados de produção.
 
 Frontend:
 
