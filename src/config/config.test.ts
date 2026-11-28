@@ -20,15 +20,36 @@ test("an empty environment boots the guest-only runtime with defaults", () => {
   assert.ok(warnings.some((warning) => warning.includes("LOCATIONIQ_API_KEY")));
 });
 
-test("today's production variables load without errors, warning about what step 2 will require", () => {
-  const {config, warnings} = loadConfig({...production, GOOGLE_CLIENT_ID: "", VITE_GOOGLE_CLIENT_ID: "vite.apps.googleusercontent.com", SESSION_SECRET: "short"});
+test("production with a database refuses to boot without CA, GOOGLE_CLIENT_ID and a long SESSION_SECRET", () => {
+  const error = (() => {
+    try {
+      loadConfig({...production, GOOGLE_CLIENT_ID: "", VITE_GOOGLE_CLIENT_ID: "vite.apps.googleusercontent.com", SESSION_SECRET: "short-secret"});
+    } catch (caught) {
+      return caught;
+    }
+    return undefined;
+  })();
+  assert.ok(error instanceof ConfigError);
+  assert.equal(error.problems.length, 3);
+  for (const name of ["DATABASE_CA_CERT", "GOOGLE_CLIENT_ID", "SESSION_SECRET"]) {
+    assert.ok(error.problems.some((problem) => problem.startsWith(name)), `${name} reported`);
+  }
+  // VITE_GOOGLE_CLIENT_ID is no longer accepted as a fallback, and values never leak.
+  assert.doesNotMatch(error.message, /short-secret|secret-password|vite\.apps/);
+});
+
+test("outside production the same gaps are warnings, so local development keeps working", () => {
+  const {config, warnings} = loadConfig({...production, NODE_ENV: "development", GOOGLE_CLIENT_ID: "", SESSION_SECRET: ""});
   assert.equal(config.database?.poolMax, 3);
-  assert.equal(config.database?.caCert, undefined);
-  assert.equal(config.googleClientId, "vite.apps.googleusercontent.com");
+  assert.equal(config.googleClientId, undefined);
   assert.equal(warnings.length, 3);
-  assert.ok(warnings.some((warning) => warning.includes("DATABASE_CA_CERT")));
-  assert.ok(warnings.some((warning) => warning.includes("GOOGLE_CLIENT_ID")));
-  assert.ok(warnings.some((warning) => warning.includes("SESSION_SECRET")));
+  assert.ok(warnings.every((warning) => warning.endsWith("(mandatory in production).")));
+});
+
+test("production without a database (previews) needs none of the database secrets", () => {
+  const {config, warnings} = loadConfig({NODE_ENV: "production", LOCATIONIQ_API_KEY: "pk.test"});
+  assert.equal(config.database, undefined);
+  assert.deepEqual(warnings, []);
 });
 
 test("a complete configuration has no warnings", () => {
