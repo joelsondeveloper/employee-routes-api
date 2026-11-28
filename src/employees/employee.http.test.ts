@@ -3,34 +3,11 @@ import {test} from "node:test";
 import type {AddressInfo} from "node:net";
 import {createApp} from "../app.js";
 import type {Employee} from "./employee.types.js";
+import {InMemoryEmployeeRepository} from "../database/in-memory-employee-repository.js";
+import {LOCAL_TENANT_ID} from "../auth/tenant.js";
 
 function memoryStore(initial: Employee[]) {
-  const rows = [...initial];
-  return {
-    rows,
-    prepare(sql: string) {
-      return {
-        all: () => rows,
-        get: (id?: string) => rows.find((employee) => employee.id === id),
-        run: (...params: unknown[]) => {
-          if (sql.includes("INSERT INTO")) {
-            rows.push({id: String(params[0]), name: String(params[1]), address: String(params[2]), phone: String(params[3]), latitude: Number(params[4]), longitude: Number(params[5])});
-            return {changes: 1};
-          }
-          if (sql.includes("UPDATE employees")) {
-            const employee = rows.find((item) => item.id === params[5]);
-            if (!employee) return {changes: 0};
-            Object.assign(employee, {name: params[0], address: params[1], phone: params[2], latitude: params[3], longitude: params[4]});
-            return {changes: 1};
-          }
-          const index = rows.findIndex((item) => item.id === params[0]);
-          if (index < 0) return {changes: 0};
-          rows.splice(index, 1);
-          return {changes: 1};
-        },
-      };
-    },
-  };
+  return new InMemoryEmployeeRepository({[LOCAL_TENANT_ID]: initial});
 }
 
 async function withServer(options: Parameters<typeof createApp>[0], callback: (url: string) => Promise<void>) {
@@ -49,7 +26,7 @@ const existing: Employee = {id: "e1", name: "Ana", address: "Rua antiga", phone:
 test("employee coordinates are accepted, preserved and updated without geocoding", async () => {
   const store = memoryStore([existing]);
   let geocodeCalls = 0;
-  await withServer({employees: {employeeStore: store, geocode: async () => { geocodeCalls++; return {latitude: 1, longitude: 1}; }}}, async (url) => {
+  await withServer({employees: {employeeRepository: store, geocode: async () => { geocodeCalls++; return {latitude: 1, longitude: 1}; }}}, async (url) => {
     const created = await fetch(`${url}/employees`, {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({name: "Bruno", address: "Rua corrigida", phone: "81888888888", latitude: -8.2, longitude: -34.8})});
     assert.equal(created.status, 201);
     assert.deepEqual((await created.json() as Employee).latitude, -8.2);
@@ -64,7 +41,7 @@ test("employee coordinates are accepted, preserved and updated without geocoding
 
 test("partial or invalid coordinates are rejected before geocoding", async () => {
   const store = memoryStore([]);
-  await withServer({employees: {employeeStore: store, geocode: async () => ({latitude: 1, longitude: 1})}}, async (url) => {
+  await withServer({employees: {employeeRepository: store, geocode: async () => ({latitude: 1, longitude: 1})}}, async (url) => {
     for (const coordinates of [{latitude: -8}, {longitude: -34}, {latitude: Number.NaN, longitude: 1}, {latitude: 91, longitude: 1}]) {
       const response = await fetch(`${url}/employees`, {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({name: "Teste", address: "Rua", phone: "1", ...coordinates})});
       assert.equal(response.status, 400);
@@ -75,7 +52,7 @@ test("partial or invalid coordinates are rejected before geocoding", async () =>
 test("address without explicit coordinates keeps automatic geocoding", async () => {
   const store = memoryStore([]);
   let calls = 0;
-  await withServer({employees: {employeeStore: store, geocode: async () => { calls++; return {latitude: -8.4, longitude: -34.6}; }}}, async (url) => {
+  await withServer({employees: {employeeRepository: store, geocode: async () => { calls++; return {latitude: -8.4, longitude: -34.6}; }}}, async (url) => {
     const response = await fetch(`${url}/employees`, {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({name: "Geocodificada", address: "Rua", phone: "1"})});
     assert.equal(response.status, 201);
     assert.equal(calls, 1);

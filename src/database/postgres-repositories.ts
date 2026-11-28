@@ -1,13 +1,7 @@
-import {Pool} from "pg";
+import type {Pool} from "pg";
 import {randomUUID} from "node:crypto";
 import type {Employee} from "../employees/employee.types.js";
 import type {AuthContext, AuthRepository, EmployeeRepository, GoogleIdentity, UserRole} from "./repository.types.js";
-
-export function createPostgresPool(): Pool {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) throw new Error("DATABASE_URL is required for PostgreSQL.");
-  return new Pool({connectionString, max: Number(process.env.DATABASE_POOL_MAX ?? 10), connectionTimeoutMillis: 10_000});
-}
 
 function employeeFromRow(row: Record<string, unknown>): Employee {
   return {
@@ -21,7 +15,7 @@ function employeeFromRow(row: Record<string, unknown>): Employee {
 }
 
 export class PostgresEmployeeRepository implements EmployeeRepository {
-  constructor(private readonly pool: Pool = createPostgresPool()) {}
+  constructor(private readonly pool: Pool) {}
 
   async list(organizationId: string): Promise<Employee[]> {
     const result = await this.pool.query("SELECT id, name, address, phone, latitude, longitude FROM employees WHERE organization_id = $1 ORDER BY id", [organizationId]);
@@ -70,7 +64,7 @@ function contextFromRow(row: Record<string, unknown>): AuthContext {
 }
 
 export class PostgresAuthRepository implements AuthRepository {
-  constructor(private readonly pool: Pool = createPostgresPool()) {}
+  constructor(private readonly pool: Pool) {}
 
   async upsertGoogleIdentity(identity: GoogleIdentity): Promise<AuthContext> {
     const client = await this.pool.connect();

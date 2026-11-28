@@ -1,46 +1,28 @@
 import type {IncomingMessage, ServerResponse} from "node:http";
 import type {Express} from "express";
-import {createApp} from "../src/app.js";
-import {DefaultAuthService} from "../src/auth/auth.service.js";
-import {GoogleAuthService} from "../src/auth/google-auth.service.js";
-import {initializePostgresRuntime} from "../src/database/runtime.js";
+import {ConfigError, loadConfig} from "../src/config/config.js";
+import {buildApp} from "../src/runtime/build-app.js";
 
 // Vercel serverless entry. vercel.json rewrites /api/*, /employees and /health
 // here; Express still sees the original path in request.url.
 let appPromise: Promise<Express> | undefined;
 
-async function buildApp(): Promise<Express> {
-  // Previews run without a database on purpose: only /health and the guest
-  // playground work, so a branch deployment can never touch production data.
-  if (!process.env.DATABASE_URL) {
-    console.warn("PRIVATE_API_DISABLED", {reason: "DATABASE_URL is not set; serving /health and /api/guest only."});
-    return createApp({privateApi: "unavailable"});
-  }
-  const runtime = await initializePostgresRuntime();
-  // Without a Google client ID (e.g. preview envs) the guest mode still works;
-  // private routes answer AUTH_CONFIGURATION instead of the whole API failing.
-  let authService: DefaultAuthService | undefined;
-  try {
-    authService = new DefaultAuthService(new GoogleAuthService(), runtime.authRepository);
-  } catch (error) {
-    console.error("AUTH_CONFIGURATION_ERROR", {error: error instanceof Error ? error.message : "unknown"});
-  }
-  return createApp({
-    requireAuthentication: true,
-    ...(authService ? {auth: {service: authService}} : {}),
-    employees: {employeeRepository: runtime.employeeRepository},
-    optimization: {employeeRepository: runtime.employeeRepository},
-  });
+async function start(): Promise<Express> {
+  const {config, warnings} = loadConfig(process.env);
+  for (const warning of warnings) console.warn("CONFIG_WARNING", {warning});
+  return buildApp(config);
 }
 
 export default async function handler(request: IncomingMessage, response: ServerResponse): Promise<void> {
   try {
-    appPromise ??= buildApp();
+    appPromise ??= start();
     const app = await appPromise;
     app(request as Parameters<Express>[0], response as Parameters<Express>[1]);
   } catch (error) {
     appPromise = undefined; // retry initialization on the next request
-    console.error("STARTUP_DATABASE_ERROR", {error: error instanceof Error ? error.message : "unknown"});
+    // Label the failure by its cause: configuration problems are not database outages.
+    if (error instanceof ConfigError) console.error("STARTUP_CONFIGURATION_ERROR", {problems: error.problems});
+    else console.error("STARTUP_ERROR", {error: error instanceof Error ? `${error.name}: ${error.message}` : "unknown"});
     response.statusCode = 503;
     response.setHeader("Content-Type", "application/json");
     response.end(JSON.stringify({error: {code: "SERVICE_UNAVAILABLE", message: "O servidor está indisponível no momento."}}));

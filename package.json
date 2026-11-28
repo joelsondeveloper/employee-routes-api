@@ -2,11 +2,11 @@
   "dependencies": {
     "express": "^5.2.1",
     "google-auth-library": "^11.1.0",
-    "pg": "^8.23.0"
+    "pg": "^8.23.0",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.9",
-    "@types/better-sqlite3": "^9.6.0",
     "@types/express": "^5.0.6",
     "@types/node": "^26.5.1",
     "@types/pg": "^8.23.1",
@@ -39,9 +39,6 @@
     "url": "https://github.com/joelsondeveloper/employee-routes-api/issues"
   },
   "homepage": "https://github.com/joelsondeveloper/employee-routes-api#readme",
-  "optionalDependencies": {
-    "better-sqlite3": "^13.0.3"
-  },
   "engines": {
     "node": ">=22"
   }

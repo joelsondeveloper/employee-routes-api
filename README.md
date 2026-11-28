@@ -14,19 +14,26 @@ Na raiz do repositório:
 
 ```bash
 npm install
-copy .env.example .env
+cp .env.example .env
+docker compose up -d      # PostgreSQL local (opcional)
 npm run dev
 ```
 
-Configure `LOCATIONIQ_API_KEY` no `.env`. Para desenvolvimento com o frontend separado, configure também:
+A configuração é validada uma vez no boot (`src/config/config.ts`):
+- **Valor malformado** (porta não numérica, URL ou PEM inválidos): o processo não sobe e o log `STARTUP_CONFIGURATION_ERROR` lista as variáveis, sem expor os valores.
+- **Configuração incompleta, mas que ainda funciona:** gera `CONFIG_WARNING` a cada cold start.
 
-```ini
-FRONTEND_ORIGIN=http://127.0.0.1:5173
-```
+| Variável | Obrigatória | Observação |
+|---|---|---|
+| `DATABASE_URL` | para login e dados | Sem ela, a API serve só `/health` e o modo visitante. As migrations rodam no boot |
+| `DATABASE_CA_CERT` | recomendada (obrigatória em produção na etapa 2 do P0-3) | PEM da CA do banco. Com ela, o TLS é verificado no código e qualquer `sslmode` da URL é removido |
+| `DATABASE_POOL_MAX` | não (padrão 10) | Inteiro de 1 a 50 |
+| `GOOGLE_CLIENT_ID` | para login | Público. Hoje ainda cai para `VITE_GOOGLE_CLIENT_ID` com aviso |
+| `SESSION_SECRET` | para sessões de 7 dias | Pelo menos 32 caracteres (`openssl rand -base64 48`) |
+| `LOCATIONIQ_API_KEY` | para geocoding e rotas | Segredo, somente no backend |
+| `FRONTEND_ORIGIN` | não | Só se o frontend estiver em outra origem |
 
-O runtime PostgreSQL usa `DATABASE_URL` e executa migrations na inicialização. Em produção, também são obrigatórios `GOOGLE_CLIENT_ID`, `LOCATIONIQ_API_KEY` e `FRONTEND_ORIGIN`. O `GOOGLE_CLIENT_ID` é público e pode aparecer no frontend como `VITE_GOOGLE_CLIENT_ID`; nenhuma chave secreta deve ser colocada em uma variável `VITE_*`.
-
-O SQLite continua disponível apenas como fallback local/teste quando `DATABASE_URL` não está definida. Em produção o servidor encerra durante o startup se PostgreSQL ou Google não estiverem configurados.
+Nenhum segredo deve ir para uma variável `VITE_*`: elas entram no bundle público.
 
 O backend fica disponível em `http://localhost:3000`.
 
@@ -51,17 +58,13 @@ O painel React está em `frontend/` e usa Vite, TypeScript, Tailwind CSS, Lucide
 ```bash
 cd frontend
 npm install
-copy .env.example .env
+cp .env.example .env
 npm run dev
 ```
 
-O frontend fica disponível em `http://127.0.0.1:5173`. O arquivo `frontend/.env` deve apontar para a API:
+O frontend fica disponível em `http://127.0.0.1:5173`. O dev server do Vite repassa `/api`, `/employees` e `/health` para `http://127.0.0.1:3000`. Assim o navegador fala sempre com a própria origem, como em produção, e o cookie de sessão continua first-party.
 
-```ini
-VITE_API_URL=http://localhost:3000
-```
-
-O frontend nunca recebe a chave da LocationIQ; o navegador conversa somente com a API do backend. Em produção, a sessão Google usa cookie `HttpOnly`, `Secure` e `SameSite=None` para o frontend e backend em domínios diferentes.
+O frontend nunca recebe a chave da LocationIQ; o navegador conversa somente com a API do backend. Em produção, a sessão usa cookie `HttpOnly`, `Secure` e `SameSite=Lax` na mesma origem.
 
 Quando a autenticação Google está habilitada, configure no `frontend/.env`:
 

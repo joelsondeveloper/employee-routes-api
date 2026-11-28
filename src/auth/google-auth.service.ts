@@ -20,8 +20,8 @@ export class GoogleAuthService implements GoogleTokenVerifier {
   private readonly client: OAuth2Client;
   private readonly audience: string;
 
-  // On Vercel the API shares the frontend project, whose public client ID is VITE_GOOGLE_CLIENT_ID.
-  constructor(audience = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID) {
+  /** The audience comes from loadConfig() (GOOGLE_CLIENT_ID, temporarily falling back to VITE_GOOGLE_CLIENT_ID). */
+  constructor(audience: string | undefined) {
     if (!audience) throw new AuthConfigurationError();
     this.audience = audience;
     this.client = new OAuth2Client();

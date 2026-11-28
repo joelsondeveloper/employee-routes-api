@@ -1,26 +1,20 @@
-import {Router, type Request} from "express";
+import {Router} from "express";
 import {randomUUID} from "node:crypto";
 import type {Employee} from "./employee.types.js";
 import {geocodeAddress} from "../geocoding/geocoding.service.js";
 import {GeocodingNotFoundError, GeocodingProviderError} from "../geocoding/geocoding.errors.js";
 import {validateOptionalCoordinates} from "./employee-input.validation.js";
-import {createDefaultEmployeeRepository, fromLegacyEmployeeStore, type LegacyEmployeeStore} from "../database/employee-repository.js";
 import type {EmployeeRepository} from "../database/repository.types.js";
+import {tenantId} from "../auth/tenant.js";
 
 export interface EmployeeRouteDependencies {
-  employeeRepository?: EmployeeRepository;
-  /** Kept for the existing in-memory/SQLite HTTP tests. */
-  employeeStore?: LegacyEmployeeStore;
+  employeeRepository: EmployeeRepository;
   geocode?: typeof geocodeAddress;
 }
 
-function tenantId(request: Request): string {
-  return request.auth?.organizationId ?? "legacy";
-}
-
-export function createEmployeeRouter(dependencies: EmployeeRouteDependencies = {}): Router {
+export function createEmployeeRouter(dependencies: EmployeeRouteDependencies): Router {
   const router = Router();
-  const repository = dependencies.employeeRepository ?? (dependencies.employeeStore ? fromLegacyEmployeeStore(dependencies.employeeStore) : createDefaultEmployeeRepository());
+  const repository = dependencies.employeeRepository;
   const geocode = dependencies.geocode ?? geocodeAddress;
 
   router.get("/", async (request, response) => response.json(await repository.list(tenantId(request))));
