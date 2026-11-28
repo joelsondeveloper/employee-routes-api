@@ -6,6 +6,8 @@ import {createApp} from "../app.js";
 import type {OptimizationRouteDependencies} from "./optimization.routes.js";
 import type {EmployeeRouteOptimizationResult} from "./employee-route-optimization.types.js";
 import {RoutingProviderError} from "../routing/routing.errors.js";
+import {InMemoryEmployeeRepository} from "../database/in-memory-employee-repository.js";
+import {LOCAL_TENANT_ID} from "../auth/tenant.js";
 
 const employee = (id: string, name = id): Employee => ({
   id,
@@ -53,8 +55,8 @@ const result: EmployeeRouteOptimizationResult = {
   },
 };
 
-function store(rows: Employee[]): NonNullable<OptimizationRouteDependencies["employeeStore"]> {
-  return {prepare: () => ({all: () => rows})};
+function store(rows: Employee[]): OptimizationRouteDependencies["employeeRepository"] {
+  return new InMemoryEmployeeRepository({[LOCAL_TENANT_ID]: rows});
 }
 
 async function withServer(dependencies: OptimizationRouteDependencies, callback: (baseUrl: string) => Promise<void>): Promise<void> {
@@ -81,7 +83,7 @@ async function post(baseUrl: string, body: unknown): Promise<{status: number; js
 const selected = [e1.id, e2.id, e3.id];
 
 test("GET /health returns a local health response", async () => {
-  await withServer({employeeStore: store([])}, async (baseUrl) => {
+  await withServer({employeeRepository: store([])}, async (baseUrl) => {
     const response = await fetch(`${baseUrl}/health`);
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), {status: "ok"});
@@ -90,7 +92,7 @@ test("GET /health returns a local health response", async () => {
 
 test("empty selection is rejected at the HTTP boundary", async () => {
   await withServer({
-    employeeStore: store([]),
+    employeeRepository: store([]),
     optimize: async (_origin, employees) => ({
       groups: [],
       issues: [],
@@ -103,7 +105,7 @@ test("empty selection is rejected at the HTTP boundary", async () => {
 });
 
 test("accepted/rejected groups, stops, issues and employee coverage are exposed as HTTP DTOs", async () => {
-  await withServer({employeeStore: store([e1, e2, e3]), optimize: async (_origin, employees) => ({...result, summary: {...result.summary, totalEmployees: employees.length}})}, async (baseUrl) => {
+  await withServer({employeeRepository: store([e1, e2, e3]), optimize: async (_origin, employees) => ({...result, summary: {...result.summary, totalEmployees: employees.length}})}, async (baseUrl) => {
     const response = await post(baseUrl, {employeeIds: selected});
     assert.equal(response.status, 200);
     const body = await response.json() as typeof result & {groups: Array<Record<string, unknown>>};
@@ -121,7 +123,7 @@ test("accepted/rejected groups, stops, issues and employee coverage are exposed 
 });
 
 test("unroutable issue includes a safe employee DTO", async () => {
-  await withServer({employeeStore: store([e1, e2, e3]), optimize: async () => result}, async (baseUrl) => {
+  await withServer({employeeRepository: store([e1, e2, e3]), optimize: async () => result}, async (baseUrl) => {
     const response = await post(baseUrl, {employeeIds: selected});
     const body = await response.json() as {issues: Array<Record<string, unknown>>};
     const issue = body.issues[0]!;
@@ -132,7 +134,7 @@ test("unroutable issue includes a safe employee DTO", async () => {
 });
 
 test("invalid HTTP input returns 400", async () => {
-  await withServer({employeeStore: store([])}, async (baseUrl) => {
+  await withServer({employeeRepository: store([])}, async (baseUrl) => {
     const response = await post(baseUrl, []);
     assert.equal(response.status, 400);
     assert.deepEqual(await response.json(), {error: {code: "INVALID_REQUEST", message: "O corpo da requisição deve ser um objeto JSON."}});
@@ -140,7 +142,7 @@ test("invalid HTTP input returns 400", async () => {
 });
 
 test("unsupported optimization filters are rejected instead of being ignored", async () => {
-  await withServer({employeeStore: store([])}, async (baseUrl) => {
+  await withServer({employeeRepository: store([])}, async (baseUrl) => {
     const response = await post(baseUrl, {employees: []});
     assert.equal(response.status, 400);
     assert.equal((await response.json() as {error: {code: string}}).error.code, "INVALID_REQUEST");
@@ -149,7 +151,7 @@ test("unsupported optimization filters are rejected instead of being ignored", a
 
 test("selection validates unknown and duplicate IDs and only optimizes selected employees", async () => {
   let received: string[] = [];
-  await withServer({employeeStore: store([e1, e2, e3]), optimize: async (_origin, employees) => {
+  await withServer({employeeRepository: store([e1, e2, e3]), optimize: async (_origin, employees) => {
     received = employees.map((employee) => employee.id);
     return {...result, groups: [], issues: [], summary: {...result.summary, totalEmployees: employees.length, totalGroups: 0, rejectedGroups: 0, acceptableGroups: 0, unroutableEmployees: 0, averageOccupancy: 0}};
   }}, async (baseUrl) => {
@@ -163,7 +165,7 @@ test("selection validates unknown and duplicate IDs and only optimizes selected 
 
 test("provider failures map to safe upstream errors", async () => {
   await withServer({
-    employeeStore: store([e1]),
+    employeeRepository: store([e1]),
     optimize: async () => { throw new RoutingProviderError("secret API_KEY and stack", "UPSTREAM", 503); },
   }, async (baseUrl) => {
     const response = await post(baseUrl, {employeeIds: [e1.id]});
@@ -179,7 +181,7 @@ test("unexpected failures map to a safe 500", async () => {
   const original = console.error;
   console.error = () => undefined;
   try {
-    await withServer({employeeStore: store([e1]), optimize: async () => { throw new Error("private stack"); }}, async (baseUrl) => {
+    await withServer({employeeRepository: store([e1]), optimize: async () => { throw new Error("private stack"); }}, async (baseUrl) => {
       const response = await post(baseUrl, {employeeIds: [e1.id]});
       assert.equal(response.status, 500);
       assert.deepEqual(await response.json(), {error: {code: "INTERNAL_ERROR", message: "Ocorreu um erro interno."}});
@@ -190,7 +192,7 @@ test("unexpected failures map to a safe 500", async () => {
 test("concurrent optimization requests share one execution", async () => {
   let calls = 0;
   await withServer({
-      employeeStore: store([e1]),
+      employeeRepository: store([e1]),
     optimize: async () => {
       calls++;
       await new Promise((resolve) => setTimeout(resolve, 20));
@@ -206,7 +208,7 @@ test("concurrent optimization requests share one execution", async () => {
 test("concurrent different selections never share an execution", async () => {
   const received: string[][] = [];
   await withServer({
-    employeeStore: store([e1, e2, e3]),
+    employeeRepository: store([e1, e2, e3]),
     optimize: async (_origin, employees) => {
       received.push(employees.map((employee) => employee.id));
       await new Promise((resolve) => setTimeout(resolve, 10));
@@ -225,7 +227,7 @@ test("concurrent different selections never share an execution", async () => {
 test("resolves presets and returns the applied configuration", async () => {
   let received: {minimumCompatibilityScore?: number}[] = [];
   await withServer({
-    employeeStore: store([e1]),
+    employeeRepository: store([e1]),
     optimize: async (_origin, _employees, _provider, config) => {
       received.push(config ? {minimumCompatibilityScore: config.minimumCompatibilityScore} : {});
       return {...result, groups: [], issues: [], summary: {...result.summary, totalEmployees: 1, totalGroups: 0, acceptableGroups: 0, rejectedGroups: 0, unroutableEmployees: 0, averageOccupancy: 0}, optimizationProfile: "CONSERVATIVE", ...(config ? {appliedOptimizationConfig: config} : {})};
@@ -241,7 +243,7 @@ test("resolves presets and returns the applied configuration", async () => {
 });
 
 test("rejects malformed custom optimization configuration", async () => {
-  await withServer({employeeStore: store([e1])}, async (baseUrl) => {
+  await withServer({employeeRepository: store([e1])}, async (baseUrl) => {
     const response = await post(baseUrl, {employeeIds: [e1.id], optimizationProfile: "CUSTOM", optimizationConfig: {minimumCompatibilityScore: 35, maxDirectionDifference: 90, maxProximityKm: 10, maxDistanceDifferenceKm: 20, maxAverageExtraDurationMinutes: 30, maxExtraDurationMinutes: 20}});
     assert.equal(response.status, 400);
     assert.equal((await response.json() as {error: {code: string}}).error.code, "INVALID_OPTIMIZATION_CONFIG");
@@ -251,7 +253,7 @@ test("rejects malformed custom optimization configuration", async () => {
 test("same selection with different profiles does not share in-flight result", async () => {
   let calls = 0;
   const profiles: unknown[] = [];
-  await withServer({employeeStore: store([e1]), optimize: async (_origin, _employees, _provider, _config, profile) => {
+  await withServer({employeeRepository: store([e1]), optimize: async (_origin, _employees, _provider, _config, profile) => {
     calls++;
     profiles.push(profile);
     await new Promise((resolve) => setTimeout(resolve, 15));
@@ -269,7 +271,7 @@ test("same selection with different profiles does not share in-flight result", a
 
 test("more than 100 employees per execution is rejected before any lookup or provider call", async () => {
   let optimizeCalls = 0;
-  await withServer({employeeStore: store([]), optimize: async () => { optimizeCalls++; return result; }}, async (baseUrl) => {
+  await withServer({employeeRepository: store([]), optimize: async () => { optimizeCalls++; return result; }}, async (baseUrl) => {
     for (const path of ["/api/routes/optimize", "/api/routes/recalculate"]) {
       const employeeIds = Array.from({length: 101}, (_, index) => `e-${index}`);
       const response = await fetch(`${baseUrl}${path}`, {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({employeeIds, groups: []})});

@@ -1,13 +1,13 @@
 import type {AuthContext, AuthRepository} from "../database/repository.types.js";
-import {GoogleAuthService, InvalidGoogleTokenError} from "./google-auth.service.js";
+import {InvalidGoogleTokenError} from "./google-auth.service.js";
 import type {AuthService, GoogleTokenVerifier, SignInResult} from "./auth.types.js";
 import {createSessionToken, isSessionToken, verifySessionToken} from "./session-token.js";
 
 export class DefaultAuthService implements AuthService {
   constructor(
-    private readonly verifier: GoogleTokenVerifier = new GoogleAuthService(),
+    private readonly verifier: GoogleTokenVerifier,
     private readonly repository: AuthRepository,
-    private readonly sessionSecret: string | undefined = process.env.SESSION_SECRET,
+    private readonly sessionSecret: string | undefined = undefined,
   ) {}
 
   async signIn(idToken: string): Promise<SignInResult> {

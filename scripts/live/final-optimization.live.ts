@@ -1,4 +1,4 @@
-import {getDatabase} from "../../src/database/database.js";
+import {DEMO_EMPLOYEES} from "../../src/demo/demo-employees.js";
 import { optimizeEmployeeRoutes } from "../../src/optimization/employee-route-optimization.service.js";
 import { LocationIQRoutingProvider } from "../../src/routing/providers/locationiq-routing.provider.js";
 import type { Employee } from "../../src/employees/employee.types.js";
@@ -29,22 +29,12 @@ async function main() {
   }
 
   // --------------------------------------------------
-  // 2. BUSCAR FUNCIONÁRIOS CADASTRADOS
+  // 2. FUNCIONÁRIOS DE DEMONSTRAÇÃO
   // --------------------------------------------------
 
-  const employees = getDatabase()
-    .prepare(`
-      SELECT
-        id,
-        name,
-        address,
-        phone,
-        latitude,
-        longitude
-      FROM employees
-      ORDER BY id
-    `)
-    .all() as Employee[];
+  // The SQLite store was removed in P0-3: use the 12-employee demo dataset,
+  // the same fictitious data the guest mode serves.
+  const employees: Employee[] = DEMO_EMPLOYEES.map((employee) => ({...employee}));
 
   console.log(`Funcionários encontrados: ${employees.length}\n`);
 

@@ -1,13 +1,9 @@
 import type {ApiErrorBody, AuthSession, Employee, EmployeeWriteInput, GeocodingPreview, OptimizationResponse, ManualRouteInput, OptimizationRequestConfig} from "../types/api";
 
-// In production the Vercel deployment proxies API paths to Railway. Keeping
-// this empty makes the browser request the proxy on its own origin, so the
-// HttpOnly session cookie is first-party. Development can still use a direct
-// API URL when needed.
-const configuredApiUrl = import.meta.env.DEV
-  ? (import.meta.env.VITE_API_URL || "http://localhost:3000")
-  : "";
-const API_URL = configuredApiUrl.replace(/\/$/, "");
+// Always same-origin: in production Vercel serves the SPA and rewrites the API
+// paths to the function; in development the Vite dev server proxies them to the
+// local API (vite.config.ts). The HttpOnly session cookie stays first-party.
+const API_URL = "";
 let authToken: string | undefined;
 
 export function setApiAuthToken(token: string | undefined): void { authToken = token; }

@@ -7,6 +7,8 @@ export default defineConfig({
   server: {
     port: 5173,
     host: "127.0.0.1",
+    // Same paths Vercel rewrites to the API function (see vercel.json).
+    proxy: Object.fromEntries(["/api", "/employees", "/health"].map((path) => [path, {target: process.env.API_PROXY_TARGET ?? "http://127.0.0.1:3000", changeOrigin: false}])),
   },
   test: {
     environment: "jsdom",

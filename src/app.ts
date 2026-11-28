@@ -5,9 +5,7 @@ import {createGeocodingRouter, type GeocodingRouteDependencies} from "./geocodin
 import {createAuthRouter} from "./auth/auth.routes.js";
 import {createRequireAuth} from "./auth/auth.middleware.js";
 import {DefaultAuthService} from "./auth/auth.service.js";
-import {GoogleAuthService} from "./auth/google-auth.service.js";
 import type {AuthDependencies, AuthService} from "./auth/auth.types.js";
-import {createDefaultAuthRepository} from "./database/auth-repository.js";
 import {createGuestRouter, type GuestRouteDependencies} from "./guest/guest.routes.js";
 
 export interface AppOptions {
@@ -17,7 +15,7 @@ export interface AppOptions {
   auth?: AuthDependencies;
   guest?: GuestRouteDependencies;
   frontendOrigin?: string;
-  /** Production enables auth by default; injected test stores remain opt-in. */
+  /** buildApp() turns this on for the database runtime; it is off by default (tests, local dev). */
   requireAuthentication?: boolean;
   /**
    * "unavailable" serves only /health and the guest playground: private routes
@@ -33,21 +31,16 @@ const privateApiUnavailable: RequestHandler = (_request, response) => {
   response.status(503).json({error: {code: "PRIVATE_API_UNAVAILABLE", message: "Login e dados da organização não estão disponíveis neste ambiente. Use o modo visitante."}});
 };
 
-function resolveAuthService(options: AppOptions, authRequired: boolean): AuthService | undefined {
+/** createApp never builds infrastructure itself: services arrive injected (see buildApp). */
+function resolveAuthService(options: AppOptions): AuthService | undefined {
   if (options.auth?.service) return options.auth.service;
   if (options.auth?.verifier && options.auth.repository) return new DefaultAuthService(options.auth.verifier, options.auth.repository);
-  if (!authRequired) return undefined;
-  try {
-    return new DefaultAuthService(new GoogleAuthService(), createDefaultAuthRepository());
-  } catch (error) {
-    if (process.env.NODE_ENV === "production") console.error("AUTH_CONFIGURATION_ERROR", {error: error instanceof Error ? error.message : "unknown"});
-    return undefined;
-  }
+  return undefined;
 }
 
 export function createApp(options: AppOptions = {}): Express {
   const app = express();
-  const frontendOrigin = options.frontendOrigin ?? process.env.FRONTEND_ORIGIN;
+  const frontendOrigin = options.frontendOrigin;
   if (frontendOrigin) {
     app.use((request: Request, response: Response, next: NextFunction) => {
       const origin = request.header("origin");
@@ -72,9 +65,8 @@ export function createApp(options: AppOptions = {}): Express {
     return app;
   }
 
-  const injectedStore = Boolean(options.employees || options.optimization || options.geocoding);
-  const authRequired = options.requireAuthentication ?? (Boolean(process.env.DATABASE_URL) && !injectedStore && process.env.NODE_ENV !== "test");
-  const authService = resolveAuthService(options, authRequired);
+  const authRequired = options.requireAuthentication ?? false;
+  const authService = resolveAuthService(options);
   if (authService) {
     app.use("/api/auth", createAuthRouter(authService));
   }
@@ -82,9 +74,10 @@ export function createApp(options: AppOptions = {}): Express {
     ? (authService ? createRequireAuth(authService) : (_request, response) => response.status(500).json({error: {code: "AUTH_CONFIGURATION", message: "A autenticação não está configurada."}}))
     : (_request, _response, next) => next();
 
-  app.use("/employees", authMiddleware, createEmployeeRouter(options.employees));
+  // A private router without its repository answers 503 instead of inventing a store.
+  app.use("/employees", authMiddleware, options.employees ? createEmployeeRouter(options.employees) : privateApiUnavailable);
   app.use("/api/geocoding", authMiddleware, createGeocodingRouter(options.geocoding));
-  app.use("/api/routes", authMiddleware, createOptimizationRouter(options.optimization));
+  app.use("/api/routes", authMiddleware, options.optimization ? createOptimizationRouter(options.optimization) : privateApiUnavailable);
   app.use("/api/guest", createGuestRouter(options.guest));
 
   app.use(errorHandler);

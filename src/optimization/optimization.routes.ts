@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
-import {createDefaultEmployeeRepository, fromLegacyEmployeeStore, type LegacyEmployeeStore} from "../database/employee-repository.js";
 import type {EmployeeRepository} from "../database/repository.types.js";
+import {tenantId} from "../auth/tenant.js";
 import { company } from "../company/company.config.js";
 import type { Employee } from "../employees/employee.types.js";
 import { optimizeEmployeeRoutes } from "./employee-route-optimization.service.js";
@@ -44,8 +44,7 @@ export function logOptimization(kind: "optimize" | "recalculate" | "guest-optimi
 }
 
 export interface OptimizationRouteDependencies {
-  employeeRepository?: EmployeeRepository;
-  employeeStore?: LegacyEmployeeStore;
+  employeeRepository: EmployeeRepository;
   routingProviderFactory?: () => RoutingProvider;
   optimize?: typeof optimizeEmployeeRoutes;
 }
@@ -210,9 +209,9 @@ export function optimizationErrorResponse(error: unknown): {status: number; body
   return {status: 500, body: {error: {code: "INTERNAL_ERROR", message: "Ocorreu um erro interno."}}};
 }
 
-export function createOptimizationRouter(dependencies: OptimizationRouteDependencies = {}): Router {
+export function createOptimizationRouter(dependencies: OptimizationRouteDependencies): Router {
   const router = Router();
-  const employeeRepository = dependencies.employeeRepository ?? (dependencies.employeeStore ? fromLegacyEmployeeStore(dependencies.employeeStore) : createDefaultEmployeeRepository());
+  const employeeRepository = dependencies.employeeRepository;
   const makeProvider = dependencies.routingProviderFactory ?? (() => new LocationIQRoutingProvider());
   const runOptimization = dependencies.optimize ?? optimizeEmployeeRoutes;
   const inFlight = new Map<string, Promise<OptimizeRoutesResponse>>();
@@ -246,7 +245,7 @@ export function createOptimizationRouter(dependencies: OptimizationRouteDependen
       return response.status(mapped.status).json(mapped.body);
     }
 
-    const organizationId = request.auth?.organizationId ?? "legacy";
+    const organizationId = tenantId(request);
     const key = `${organizationId}\u001e${[...employeeIds].sort().join("\u001f")}\u001e${optimizationConfigKey(resolvedConfig)}`;
     let execution = inFlight.get(key);
 
@@ -287,7 +286,7 @@ export function createOptimizationRouter(dependencies: OptimizationRouteDependen
     const employeeIds = body.employeeIds as string[];
     const tooMany = tooManyEmployees(employeeIds.length);
     if (tooMany) return response.status(400).json(tooMany);
-    const organizationId = request.auth?.organizationId ?? "legacy";
+    const organizationId = tenantId(request);
     const allEmployees = await employeeRepository.list(organizationId);
     const byId = new Map(allEmployees.map(employee => [employee.id, employee]));
     if (employeeIds.some(id => !byId.has(id)) || new Set(employeeIds).size !== employeeIds.length) {

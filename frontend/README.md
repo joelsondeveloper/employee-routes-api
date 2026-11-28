@@ -6,11 +6,11 @@ Painel operacional da Employee Routes API. A aplicação exibe funcionários cad
 
 ```bash
 npm install
-copy .env.example .env
+cp .env.example .env
 npm run dev
 ```
 
-Defina `VITE_API_URL` para a URL do backend (por padrão `http://localhost:3000`). Variáveis `VITE_*` ficam públicas no bundle: não coloque segredos ou a chave da LocationIQ neste arquivo.
+O dev server repassa `/api`, `/employees` e `/health` para a API local em `http://127.0.0.1:3000` (configurável com `API_PROXY_TARGET`). Variáveis `VITE_*` ficam públicas no bundle: não coloque segredos ou a chave da LocationIQ neste arquivo.
 
 ## Scripts
 
