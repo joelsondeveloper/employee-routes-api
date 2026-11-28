@@ -3,10 +3,12 @@ import {z} from "zod";
 /**
  * Single source of runtime configuration, validated once at boot.
  *
- * Errors are values that can never work (a non-numeric PORT, a malformed URL or
- * PEM): boot stops and names the variable. Warnings are settings that work today
- * but will become mandatory in a later rollout step (P0-3 step 2): they are
- * logged on every cold start so they cannot go unnoticed.
+ * Errors stop the boot and name the variable (never its value):
+ * - values that can never work (a non-numeric PORT, a malformed URL or PEM);
+ * - in production with a database: no DATABASE_CA_CERT (unverified TLS), no
+ *   GOOGLE_CLIENT_ID, or a SESSION_SECRET shorter than 32 characters.
+ * Outside production those three are warnings, so local development and tests
+ * keep working without secrets.
  */
 export interface DatabaseConfig {
   url: string;
@@ -50,7 +52,6 @@ const schema = z.object({
   DATABASE_POOL_MAX: z.preprocess((value) => value || "10", z.coerce.number().int().min(1).max(50)),
   DATABASE_CA_CERT: optionalText.refine((value) => value === undefined || PEM_CERTIFICATE.test(value), "must be a PEM certificate (-----BEGIN CERTIFICATE-----)"),
   GOOGLE_CLIENT_ID: optionalText,
-  VITE_GOOGLE_CLIENT_ID: optionalText,
   SESSION_SECRET: optionalText,
   FRONTEND_ORIGIN: optionalText.refine((value) => value === undefined || isOrigin(value), "must be an origin such as https://app.example.com"),
   LOCATIONIQ_API_KEY: optionalText,
@@ -91,20 +92,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): LoadedConfig {
   const values = parsed.data;
   const warnings: string[] = [];
 
-  const googleClientId = values.GOOGLE_CLIENT_ID ?? values.VITE_GOOGLE_CLIENT_ID;
+  const googleClientId = values.GOOGLE_CLIENT_ID;
   if (values.DATABASE_URL) {
-    if (!values.DATABASE_CA_CERT) {
-      warnings.push("DATABASE_CA_CERT is not set: the database certificate is not verified (P0-3 step 2 will require it).");
+    const required: string[] = [];
+    if (!values.DATABASE_CA_CERT) required.push("DATABASE_CA_CERT is required: without it the database certificate is not verified");
+    if (!googleClientId) required.push("GOOGLE_CLIENT_ID is required: without it nobody can sign in");
+    if (!values.SESSION_SECRET || values.SESSION_SECRET.length < SESSION_SECRET_MIN_LENGTH) {
+      required.push(`SESSION_SECRET is required with at least ${SESSION_SECRET_MIN_LENGTH} characters`);
     }
-    if (!values.GOOGLE_CLIENT_ID && values.VITE_GOOGLE_CLIENT_ID) {
-      warnings.push("GOOGLE_CLIENT_ID is not set: falling back to VITE_GOOGLE_CLIENT_ID (step 2 will require GOOGLE_CLIENT_ID).");
-    }
-    if (!googleClientId) warnings.push("No Google client ID: private routes will answer AUTH_CONFIGURATION.");
-    if (!values.SESSION_SECRET) {
-      warnings.push("SESSION_SECRET is not set: sessions fall back to the 1-hour Google ID token.");
-    } else if (values.SESSION_SECRET.length < SESSION_SECRET_MIN_LENGTH) {
-      warnings.push(`SESSION_SECRET is shorter than ${SESSION_SECRET_MIN_LENGTH} characters (step 2 will require at least ${SESSION_SECRET_MIN_LENGTH}).`);
-    }
+    if (values.NODE_ENV === "production" && required.length) throw new ConfigError(required);
+    warnings.push(...required.map((problem) => `${problem} (mandatory in production).`));
   }
   if (!values.LOCATIONIQ_API_KEY) warnings.push("LOCATIONIQ_API_KEY is not set: geocoding and route optimization will fail.");
 

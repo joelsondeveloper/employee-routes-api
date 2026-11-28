@@ -21,15 +21,15 @@ npm run dev
 
 A configuração é validada uma vez no boot (`src/config/config.ts`):
 - **Valor malformado** (porta não numérica, URL ou PEM inválidos): o processo não sobe e o log `STARTUP_CONFIGURATION_ERROR` lista as variáveis, sem expor os valores.
-- **Configuração incompleta, mas que ainda funciona:** gera `CONFIG_WARNING` a cada cold start.
+- **Em produção com banco**, a falta de `DATABASE_CA_CERT`, de `GOOGLE_CLIENT_ID` ou de um `SESSION_SECRET` com 32+ caracteres também impede o boot. Fora de produção, essas mesmas lacunas só geram `CONFIG_WARNING`.
 
 | Variável | Obrigatória | Observação |
 |---|---|---|
 | `DATABASE_URL` | para login e dados | Sem ela, a API serve só `/health` e o modo visitante. As migrations rodam no boot |
-| `DATABASE_CA_CERT` | recomendada (obrigatória em produção na etapa 2 do P0-3) | PEM da CA do banco. Com ela, o TLS é verificado no código e qualquer `sslmode` da URL é removido |
+| `DATABASE_CA_CERT` | em produção com banco | PEM da CA do banco. Com ela, o TLS é verificado no código e qualquer `sslmode` da URL é removido |
 | `DATABASE_POOL_MAX` | não (padrão 10) | Inteiro de 1 a 50 |
-| `GOOGLE_CLIENT_ID` | para login | Público. Hoje ainda cai para `VITE_GOOGLE_CLIENT_ID` com aviso |
-| `SESSION_SECRET` | para sessões de 7 dias | Pelo menos 32 caracteres (`openssl rand -base64 48`) |
+| `GOOGLE_CLIENT_ID` | em produção com banco | Público (o frontend usa o mesmo valor em `VITE_GOOGLE_CLIENT_ID`) |
+| `SESSION_SECRET` | em produção com banco | Pelo menos 32 caracteres (`openssl rand -base64 48`) |
 | `LOCATIONIQ_API_KEY` | para geocoding e rotas | Segredo, somente no backend |
 | `FRONTEND_ORIGIN` | não | Só se o frontend estiver em outra origem |
 

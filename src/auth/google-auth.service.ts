@@ -20,7 +20,7 @@ export class GoogleAuthService implements GoogleTokenVerifier {
   private readonly client: OAuth2Client;
   private readonly audience: string;
 
-  /** The audience comes from loadConfig() (GOOGLE_CLIENT_ID, temporarily falling back to VITE_GOOGLE_CLIENT_ID). */
+  /** The audience comes from loadConfig() (GOOGLE_CLIENT_ID, mandatory in production). */
   constructor(audience: string | undefined) {
     if (!audience) throw new AuthConfigurationError();
     this.audience = audience;
