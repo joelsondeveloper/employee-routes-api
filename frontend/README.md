@@ -10,7 +10,7 @@ cp .env.example .env
 npm run dev
 ```
 
-O dev server repassa `/api`, `/employees` e `/health` para a API local em `http://127.0.0.1:3000` (configurável com `API_PROXY_TARGET`). Variáveis `VITE_*` ficam públicas no bundle: não coloque segredos ou a chave da LocationIQ neste arquivo.
+O dev server repassa `/api`, `/employees` e `/health` para a API local em `http://127.0.0.1:3000`. Variáveis `VITE_*` ficam públicas no bundle: não coloque segredos ou a chave da LocationIQ neste arquivo.
 
 ## Scripts
 

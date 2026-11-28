@@ -62,7 +62,7 @@ cp .env.example .env
 npm run dev
 ```
 
-O frontend fica disponível em `http://127.0.0.1:5173`. O dev server do Vite repassa `/api`, `/employees` e `/health` para `http://127.0.0.1:3000` (use `API_PROXY_TARGET` para mudar). Assim o navegador fala sempre com a própria origem, como em produção, e o cookie de sessão continua first-party.
+O frontend fica disponível em `http://127.0.0.1:5173`. O dev server do Vite repassa `/api`, `/employees` e `/health` para `http://127.0.0.1:3000`. Assim o navegador fala sempre com a própria origem, como em produção, e o cookie de sessão continua first-party.
 
 O frontend nunca recebe a chave da LocationIQ; o navegador conversa somente com a API do backend. Em produção, a sessão usa cookie `HttpOnly`, `Secure` e `SameSite=Lax` na mesma origem.
 
